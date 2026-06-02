@@ -17,61 +17,73 @@ import {
   AlertTriangle
 } from "lucide-react"
 
-export const Route = createFileRoute("/result")({ component: ResultReport })
+export const Route = createFileRoute("/result")({ component: ResultPage })
 
-function ResultReport() {
+function ResultPage() {
   const navigate = useNavigate()
-  const [result, setResult] = useState<any>(null)
-  const [activeSection, setActiveSection] = useState("ringkasan")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [mapTab, setMapTab] = useState<"score" | "rank" | "both">("both")
-  const [sortBy, setSortBy] = useState<"highest" | "lowest" | "alphabetical">("highest")
-  const [filterBy, setFilterBy] = useState<"all" | "introvert" | "extrovert" | "ammarah" | "lawwamah" | "muthmainnah">("all")
-  const [showResetModal, setShowResetModal] = useState(false)
   
-  // Section refs for scroll spy
+  // Local Data State
+  const [umum, setUmum] = useState<any>(null)
+  const [tb40Result, setTb40Result] = useState<any>(null)
+  const [tb40ResultRanked, setTb40ResultRanked] = useState<any>(null)
+  const [tb40Presentation, setTb40Presentation] = useState<any>(null)
+  
+  // UI State
+  const [activeSection, setActiveSection] = useState("ringkasan")
+  const [mapTab, setMapTab] = useState<"score" | "rank" | "both">("both")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterBy, setFilterBy] = useState<"all" | "introvert" | "extrovert" | "muthmainnah" | "lawwamah" | "ammarah">("all")
+  const [sortBy, setSortBy] = useState<"highest" | "lowest" | "alphabetical">("highest")
+  const [showResetModal, setShowResetModal] = useState(false)
+
+  // Refs for auto-scroll logic
   const ringkasanRef = useRef<HTMLDivElement>(null)
   const pemetaanRef = useRef<HTMLDivElement>(null)
   const gayaRef = useRef<HTMLDivElement>(null)
   const rincianRef = useRef<HTMLDivElement>(null)
 
-  // 1. Fetch result data from localStorage
   useEffect(() => {
     try {
+      const savedUmum = localStorage.getItem("tb40_umum")
       const savedResult = localStorage.getItem("tb40_result")
-      if (!savedResult) {
-        navigate({ to: "/" })
+      
+      if (!savedUmum || !savedResult) {
+        navigate({ to: "/" as any })
         return
       }
-      setResult(JSON.parse(savedResult))
+
+      const parsedUmum = JSON.parse(savedUmum)
+      const parsedResult = JSON.parse(savedResult)
+      
+      setUmum(parsedUmum)
+      setTb40Result(parsedResult.result)
+      setTb40ResultRanked(parsedResult.ranked)
+      setTb40Presentation(parsedResult.presentation)
+
     } catch (e) {
-      console.error(e)
-      navigate({ to: "/" })
+      console.error("Failed to parse stored results", e)
+      navigate({ to: "/" as any })
     }
   }, [navigate])
 
-  // Reset all answers and go to frontpage (risk losing data)
-  const confirmResetAndRestart = () => {
-    localStorage.removeItem("tb40_umum")
-    localStorage.removeItem("tb40_answers")
-    localStorage.removeItem("tb40_result")
-    setShowResetModal(false)
-    navigate({ to: "/" })
-  }
-
-  // 2. Scrollspy listener to highlight current section in outline dock
+  // Monitor scroll for floating nav highlights
   useEffect(() => {
     const handleScroll = () => {
-      const scrollPos = window.scrollY + 200
-      
-      if (rincianRef.current && scrollPos >= rincianRef.current.offsetTop) {
-        setActiveSection("rincian")
-      } else if (gayaRef.current && scrollPos >= gayaRef.current.offsetTop) {
-        setActiveSection("gaya")
-      } else if (pemetaanRef.current && scrollPos >= pemetaanRef.current.offsetTop) {
-        setActiveSection("pemetaan")
-      } else {
-        setActiveSection("ringkasan")
+      const sections = [
+        { id: "ringkasan", ref: ringkasanRef },
+        { id: "pemetaan", ref: pemetaanRef },
+        { id: "gaya", ref: gayaRef },
+        { id: "rincian", ref: rincianRef },
+      ]
+
+      for (const section of sections) {
+        if (section.ref.current) {
+          const rect = section.ref.current.getBoundingClientRect()
+          if (rect.top >= 0 && rect.top <= 300) {
+            setActiveSection(section.id)
+            break
+          }
+        }
       }
     }
 
@@ -79,18 +91,16 @@ function ResultReport() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  if (!result) {
-    return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <p className="text-sm text-muted-foreground animate-pulse">Menghubungkan laporan...</p>
-      </div>
-    )
+  if (!umum || !tb40Result) return null
+
+  // Confirmation for Reset
+  const confirmResetAndRestart = () => {
+    localStorage.removeItem("tb40_umum")
+    localStorage.removeItem("tb40_answers")
+    localStorage.removeItem("tb40_result")
+    navigate({ to: "/" as any })
   }
 
-  const { umum } = result.parts
-  const { tb40Result, tb40ResultRanked, tb40Presentation } = result.parts.tb40
-
-  // Pre-calculated client side scoreToColor matching backend algorithm
   const scoreToColor = (score: number): string => {
     score = Math.max(0, Math.min(100, score));
     let startColor: number[] = [];
@@ -189,6 +199,27 @@ function ResultReport() {
     window.print()
   }
 
+  // Helper to trace the root category (Group 3) of a pilar
+  const getPillarRoot = (pillar: any): string => {
+    try {
+      const parent18No = pillar.parents?.[0]?.no
+      if (!parent18No) return ""
+      
+      const el18 = tb40Result["18"]?.find((p: any) => p.pillar.no === parent18No)
+      if (!el18) return ""
+      
+      const parent6No = el18.parents?.[0]?.no
+      if (!parent6No) return ""
+      
+      const el6 = tb40Result["6"]?.find((p: any) => p.pillar.no === parent6No)
+      if (!el6) return ""
+      
+      return el6.parents?.find((parent: any) => parent.group === "3")?.no || ""
+    } catch (e) {
+      return ""
+    }
+  }
+
   // Helper to trace if a pilar in group 40 belongs to Introvert or Extrovert
   const isIntrovert = (pillar: any): boolean => {
     try {
@@ -223,12 +254,15 @@ function ResultReport() {
       if (!matchesSearch) return false
       
       // 2. Filter match
-      const score = Number(p.score)
+      const rootNo = getPillarRoot(p)
+      
       if (filterBy === "introvert") return isIntrovert(p)
       if (filterBy === "extrovert") return !isIntrovert(p)
-      if (filterBy === "ammarah") return score <= 40
-      if (filterBy === "lawwamah") return score > 40 && score < 80
-      if (filterBy === "muthmainnah") return score >= 80
+      
+      // Lineage mapping: 1: Karsa (Ammarah), 2: Cipta/Akal (Lawwamah), 3: Rasa (Muthmainnah)
+      if (filterBy === "ammarah") return rootNo === "1"
+      if (filterBy === "lawwamah") return rootNo === "2"
+      if (filterBy === "muthmainnah") return rootNo === "3"
       
       return true
     })
@@ -639,9 +673,9 @@ function ResultReport() {
                 
                 <span className="text-[10px] font-mono font-bold tracking-wider text-muted-foreground uppercase ml-2 mr-1">Nafs (Jiwa):</span>
                 {[
-                  { value: "muthmainnah", label: "Muthmainnah (≥80)" },
-                  { value: "lawwamah", label: "Lawwamah (41-79)" },
-                  { value: "ammarah", label: "Ammarah (≤40)" }
+                  { value: "muthmainnah", label: "Muthmainnah (Rasa)" },
+                  { value: "lawwamah", label: "Lawwamah (Akal)" },
+                  { value: "ammarah", label: "Ammarah (Karsa)" }
                 ].map(opt => (
                   <button
                     key={opt.value}
@@ -678,21 +712,25 @@ function ResultReport() {
           <div className="flex flex-col gap-4">
             {filteredPillars.map((p: any) => {
               const score = p.score
+              const rootNo = getPillarRoot(p)
               
-              // Determine Nafs Classification Label and rating styles
+              // Determine Nafs Classification based on Root Lineage
               let nafsLabel = "Nafs Lawwamah"
+              if (rootNo === "1") nafsLabel = "Nafs Ammarah"
+              if (rootNo === "2") nafsLabel = "Nafs Lawwamah"
+              if (rootNo === "3") nafsLabel = "Nafs Muthmainnah"
+
+              // Rating styles based on Score (Visual cues)
               let ratingBorderColor = "border-amber-200 dark:border-amber-950/20"
               let ratingBgColor = "bg-amber-50/70 dark:bg-amber-950/10 text-amber-800 dark:text-amber-300"
               
               if (score >= 80) {
-                nafsLabel = "Nafs Muthmainnah"
                 ratingBorderColor = "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
                 ratingBgColor = "bg-teal-50 dark:bg-teal-950/20 text-teal-800 dark:text-teal-400 font-semibold"
               } else if (score >= 60) {
                 ratingBorderColor = "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
                 ratingBgColor = "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400"
               } else if (score <= 40) {
-                nafsLabel = "Nafs Ammarah"
                 ratingBorderColor = "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
                 ratingBgColor = "bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400"
               }
