@@ -55,10 +55,12 @@ function ResultPage() {
       const parsedUmum = JSON.parse(savedUmum)
       const parsedResult = JSON.parse(savedResult)
       
+      const tb40Data = parsedResult.parts?.tb40 || parsedResult
+      
       setUmum(parsedUmum)
-      setTb40Result(parsedResult.result)
-      setTb40ResultRanked(parsedResult.ranked)
-      setTb40Presentation(parsedResult.presentation)
+      setTb40Result(tb40Data.tb40Result || tb40Data.result)
+      setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
+      setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
 
     } catch (e) {
       console.error("Failed to parse stored results", e)

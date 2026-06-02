@@ -160,7 +160,7 @@ function TestWizard() {
 
     try {
       // 1. Attempt to calculate via the live API
-      const response = await fetch("https://tb40.insantaqwa.org/api/v0.1/tb40/calculation", {
+      const response = await fetch("https://tb40.insanmustaqbal.or.id/api/v0.1/tb40/calculation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

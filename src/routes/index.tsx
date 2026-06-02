@@ -26,7 +26,7 @@ function LandingPage() {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 4000)
         
-        const response = await fetch("https://tb40.insantaqwa.org/api/v0.1/tb40/questions.json", {
+        const response = await fetch("https://tb40.insanmustaqbal.or.id/api/v0.1/tb40/questions.json", {
           signal: controller.signal,
         })
         
