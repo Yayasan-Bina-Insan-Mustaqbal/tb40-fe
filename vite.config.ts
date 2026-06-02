@@ -7,6 +7,11 @@ import tailwindcss from "@tailwindcss/vite"
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact()],
+  server: {
+    port: 3000,
+    host: true,
+    allowedHosts: ["tb40.insanmustaqbal.or.id"],
+  },
 })
 
 export default config

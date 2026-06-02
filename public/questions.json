@@ -1,0 +1,173 @@
+{
+  "name": "Tafsir Bakat 40 Dewasa",
+  "version": "0.1",
+  "parts": {
+    "tb40Dewasa": {
+      "name": "Tafsir Bakat 40 Dewasa",
+      "total_question": 40,
+      "score": { "default": 60, "minimal": 0, "maximal": 100 },
+      "questions": [
+        {
+          "index": "1",
+          "question": "Ketika menghadapi orang lain, aku tidak berat sebelah dalam bersikap, tidak memihak, bersikap tengah-tengah, adil, dan fair dalam “permainan”."
+        },
+        {
+          "index": "2",
+          "question": "Aku senang jika diberi tugas atau tanggung jawab atau amanah, dan aku berusaha melaksanakannya dengan sebaik-baiknya."
+        },
+        {
+          "index": "3",
+          "question": "Aku tidak tergesa-gesa ketika akan bertindak dan terlebih dahulu mempertimbangkan berbagai hal agar tidak terjadi kesalahan."
+        },
+        {
+          "index": "4",
+          "question": "Ketika akan melakukan suatu pekerjaan, aku memiliki tekad yang kuat untuk segera memulainya dan kadang seperti orang yang tidak sabaran."
+        },
+        {
+          "index": "5",
+          "question": "Aku senang beramah tamah dan tersenyum kepada orang lain, berkata lembut, dan senang memberikan penyambutan sebaik-baiknya."
+        },
+        {
+          "index": "6",
+          "question": "Aku termasuk orang yang cepat dan mudah dalam memahami sesuatu yang dihadapkan kepadaku, seperti menghitung, menganalisa dll."
+        },
+        {
+          "index": "7",
+          "question": "Aku mampu menjelaskan sesuatu yang rumit menjadi mudah dipahami meskipun dengan ungkapan yang sederhana, baik lisan maupun tulisan."
+        },
+        {
+          "index": "8",
+          "question": "Aku memiliki firasat kuat sehingga mampu menduga sesuatu yang akan terjadi dengan memperhatikan tanda-tanda yang tampak."
+        },
+        {
+          "index": "9",
+          "question": "Aku tidak senang jika ada yang menyaingiku, melanggar hakku, atau ada yang melanggar aturan dan kesepakatan yang telah ditetapkan."
+        },
+        {
+          "index": "10",
+          "question": "Aku merasa memiliki kekurangan dan merasa apa yang telah aku terima melebihi hakku sehingga menjadikan aku merasa malu."
+        },
+        {
+          "index": "11",
+          "question": "Aku senang memikirkan sesuatu secara mendalam sehingga aku mampu menemukan hikmah dari sesuatu (peristiwa) yang telah terjadi."
+        },
+        {
+          "index": "12",
+          "question": "Aku mampu menahan diri untuk tidak memarahi atau membalas orang yang bersalah meskipun aku mampu melakukannya, dan aku tetap santun."
+        },
+        {
+          "index": "13",
+          "question": "Aku memiliki rasa ingin tahu yang tinggi terhadap sesuatu sehingga aku memiliki gairah untuk meraih mimpi (cita-cita) yang tertinggi."
+        },
+        {
+          "index": "14",
+          "question": "Aku selalu berprasangka baik terhadap orang lain meskipun fakta yang aku ketahui mendukung kepada dugaan yang buruk."
+        },
+        {
+          "index": "15",
+          "question": "Aku mampu menjaga diri sehingga aku sangat menyesal jika terlanjur melakukan suatu pelanggaran atau larangan karena menuruti hasratku."
+        },
+        {
+          "index": "16",
+          "question": "Aku memiliki sifat perfeksionis sehingga aku selalu ingin segala sesuatu harus sempurna dan lebih sempurna lagi, dan aku tidak ingin seadanya."
+        },
+        {
+          "index": "17",
+          "question": "Aku senang mendahulukan orang lain meskipun sebenarnya aku lebih membutuhkannya sehingga aku menjadi orang yang senang melayani."
+        },
+        {
+          "index": "18",
+          "question": "Aku memiliki prinsip yang kujadikan sebagai harga diriku dan aku mampu mempertahankannya meskipun dalam tekanan yang sangat berat."
+        },
+        {
+          "index": "19",
+          "question": "Aku senang memberikan sesuatu tanpa diminta kepada siapapun dan aku tidak mengharap balasan atau ucapan terima kasih."
+        },
+        {
+          "index": "20",
+          "question": "Aku mampu menahan diri untuk tidak menyebarkan kabar (yang bukan aib) karena aku anggap sebagai privasi bagi orang yang bersangkutan."
+        },
+        {
+          "index": "21",
+          "question": "Aku senang memperdalam hubungan yang sudah terjalin, dengan memberikan kasih sayang secara khusus kepada yang bersangkutan."
+        },
+        {
+          "index": "22",
+          "question": "Aku senang bersaing, berlomba atau berkompetisi agar aku menjadi yang paling unggul dari yang lainnya."
+        },
+        {
+          "index": "23",
+          "question": "Aku senang bercanda dan mengungkapkan kata-kata jenaka sehingga suasana menjadi lebih ceria dan lebih akrab."
+        },
+        {
+          "index": "24",
+          "question": "Aku senang memberikan motivasi atau dorongan, saran-saran atau nasehat kepada orang lain agar menjadi lebih baik."
+        },
+        {
+          "index": "25",
+          "question": "Aku selalu ingin menyelesaikan suatu pekerjaan yang sedang aku lakukan dengan penuh semangat dan kerja keras."
+        },
+        {
+          "index": "26",
+          "question": "Ketika aku mengalami suatu kesulitan, aku dengan mudah menemukan  peluang-peluang yang dapat dijadikan sebagai solusinya."
+        },
+        {
+          "index": "27",
+          "question": "Aku senang membantu orang lain yang mengalami kesusahan sampai  terlepas dari kesusahan tersebut."
+        },
+        {
+          "index": "28",
+          "question": "Aku merasa cukup dengan apa yang telah aku miliki dan rela menerima apapun yang diberikan kepadaku."
+        },
+        {
+          "index": "29",
+          "question": "Aku mudah merasa kasihan dan bersimpati kepada orang yang mengalami kesusahan dan berkeinginan untuk memberikan yang terbaik kepadanya."
+        },
+        {
+          "index": "30",
+          "question": "Aku selalu mengambil sisi termudah dalam menyikapi semua urusan, sehingga aku selalu lemah lembut dalam berbuat maupun berkata."
+        },
+        {
+          "index": "31",
+          "question": "Aku mampu menutupi dan tidak menampakkan atau menceritakan aib diri sendiri atau orang lain."
+        },
+        {
+          "index": "32",
+          "question": "Aku mampu menahan diri untuk tidak bereaksi dan sabar terhadap tekanan, kesulitan atau apapun yang menimpa diriku."
+        },
+        {
+          "index": "33",
+          "question": "Aku cenderung banyak diam dan berbicara seperlunya, sehingga yang aku ucapkan hanya ucapan yang diperlukan saja."
+        },
+        {
+          "index": "34",
+          "question": "Aku mudah menerima saran dan masukan serta berkata dan berbuat sesuai dengan apa yang sebenarnya."
+        },
+        {
+          "index": "35",
+          "question": "Aku berani menghadapi orang secara langsung, untuk berbicara kepadanya, memerintah, mengatur, atau menguasainya."
+        },
+        {
+          "index": "36",
+          "question": "Aku senang menjalin kerjasama dengan orang lain, berdamai, dan menghindari konflik, untuk mencapai tujuan bersama."
+        },
+        {
+          "index": "37",
+          "question": "Aku tidak suka menampakkan atau ditampakkan kehebatanku meskipun aku memilikinya, sehingga ada orang lain yang menyebutku rendah hati."
+        },
+        {
+          "index": "38",
+          "question": "Aku senang berkumpul dengan orang banyak dan berusaha menambah anggota perkumpulan sebanyak-banyaknya."
+        },
+        {
+          "index": "39",
+          "question": "Aku memegang teguh janji yang telah disepakati bersama, meskipun posisiku sebagai pihak yang dicurangi."
+        },
+        {
+          "index": "40",
+          "question": "Aku tampak tenang tapi tangguh, tidak banyak bicara tapi bisa memahamkan, tidak tergesa tapi mendahului dalam semua urusan."
+        }
+      ]
+    }
+  }
+}

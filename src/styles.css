@@ -1,78 +1,76 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "react-day-picker/style.css";
 @import "@fontsource-variable/manrope";
 @import "@fontsource-variable/roboto-slab";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.141 0.005 285.823);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.141 0.005 285.823);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.141 0.005 285.823);
-    --primary: oklch(0.527 0.154 150.069);
-    --primary-foreground: oklch(0.982 0.018 155.826);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.967 0.001 286.375);
-    --muted-foreground: oklch(0.552 0.016 285.938);
-    --accent: oklch(0.967 0.001 286.375);
-    --accent-foreground: oklch(0.21 0.006 285.885);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.92 0.004 286.32);
-    --input: oklch(0.92 0.004 286.32);
-    --ring: oklch(0.705 0.015 286.067);
-    --chart-1: oklch(0.827 0.119 306.383);
-    --chart-2: oklch(0.627 0.265 303.9);
-    --chart-3: oklch(0.558 0.288 302.321);
-    --chart-4: oklch(0.496 0.265 301.924);
-    --chart-5: oklch(0.438 0.218 303.724);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.141 0.005 285.823);
-    --sidebar-primary: oklch(0.627 0.194 149.214);
-    --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
-    --sidebar-accent: oklch(0.967 0.001 286.375);
-    --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-    --sidebar-border: oklch(0.92 0.004 286.32);
-    --sidebar-ring: oklch(0.705 0.015 286.067);
+    --background: oklch(0.985 0.004 70);
+    --foreground: oklch(0.24 0.01 70);
+    --card: oklch(0.975 0.005 70);
+    --card-foreground: oklch(0.24 0.01 70);
+    --popover: oklch(0.985 0.004 70);
+    --popover-foreground: oklch(0.24 0.01 70);
+    --primary: oklch(0.50 0.04 120);
+    --primary-foreground: oklch(0.985 0.004 70);
+    --secondary: oklch(0.92 0.006 70);
+    --secondary-foreground: oklch(0.28 0.01 70);
+    --muted: oklch(0.94 0.006 70);
+    --muted-foreground: oklch(0.48 0.01 70);
+    --accent: oklch(0.90 0.01 120);
+    --accent-foreground: oklch(0.35 0.04 120);
+    --destructive: oklch(0.55 0.12 35);
+    --destructive-foreground: oklch(0.985 0.004 70);
+    --border: oklch(0.88 0.006 70);
+    --input: oklch(0.88 0.006 70);
+    --ring: oklch(0.50 0.04 120);
+    --chart-1: oklch(0.60 0.06 120);
+    --chart-2: oklch(0.52 0.08 70);
+    --chart-3: oklch(0.65 0.05 45);
+    --chart-4: oklch(0.45 0.08 10);
+    --chart-5: oklch(0.35 0.05 120);
+    --radius: 0.75rem;
+    --sidebar: oklch(0.985 0.004 70);
+    --sidebar-foreground: oklch(0.24 0.01 70);
+    --sidebar-primary: oklch(0.50 0.04 120);
+    --sidebar-primary-foreground: oklch(0.985 0.004 70);
+    --sidebar-accent: oklch(0.90 0.01 120);
+    --sidebar-accent-foreground: oklch(0.35 0.04 120);
+    --sidebar-border: oklch(0.88 0.006 70);
+    --sidebar-ring: oklch(0.50 0.04 120);
 }
 
 .dark {
-    --background: oklch(0.141 0.005 285.823);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.21 0.006 285.885);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.21 0.006 285.885);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.448 0.119 151.328);
-    --primary-foreground: oklch(0.982 0.018 155.826);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.274 0.006 286.033);
-    --muted-foreground: oklch(0.705 0.015 286.067);
-    --accent: oklch(0.274 0.006 286.033);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.552 0.016 285.938);
-    --chart-1: oklch(0.827 0.119 306.383);
-    --chart-2: oklch(0.627 0.265 303.9);
-    --chart-3: oklch(0.558 0.288 302.321);
-    --chart-4: oklch(0.496 0.265 301.924);
-    --chart-5: oklch(0.438 0.218 303.724);
-    --sidebar: oklch(0.21 0.006 285.885);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.723 0.219 149.579);
-    --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
-    --sidebar-accent: oklch(0.274 0.006 286.033);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.552 0.016 285.938);
+    --background: oklch(0.18 0.006 70);
+    --foreground: oklch(0.94 0.006 70);
+    --card: oklch(0.20 0.008 70);
+    --card-foreground: oklch(0.94 0.006 70);
+    --popover: oklch(0.18 0.006 70);
+    --popover-foreground: oklch(0.94 0.006 70);
+    --primary: oklch(0.62 0.05 120);
+    --primary-foreground: oklch(0.18 0.006 70);
+    --secondary: oklch(0.24 0.008 70);
+    --secondary-foreground: oklch(0.94 0.006 70);
+    --muted: oklch(0.24 0.008 70);
+    --muted-foreground: oklch(0.65 0.006 70);
+    --accent: oklch(0.26 0.02 120);
+    --accent-foreground: oklch(0.85 0.04 120);
+    --destructive: oklch(0.55 0.12 35);
+    --destructive-foreground: oklch(0.94 0.006 70);
+    --border: oklch(0.28 0.008 70);
+    --input: oklch(0.28 0.008 70);
+    --ring: oklch(0.62 0.05 120);
+    --sidebar: oklch(0.20 0.008 70);
+    --sidebar-foreground: oklch(0.94 0.006 70);
+    --sidebar-primary: oklch(0.62 0.05 120);
+    --sidebar-primary-foreground: oklch(0.18 0.006 70);
+    --sidebar-accent: oklch(0.26 0.02 120);
+    --sidebar-accent-foreground: oklch(0.85 0.04 120);
+    --sidebar-border: oklch(0.28 0.008 70);
+    --sidebar-ring: oklch(0.62 0.05 120);
 }
 
 @theme inline {
@@ -128,4 +126,52 @@
   html {
     @apply font-sans;
     }
+}
+
+/* Fix react-day-picker v10 dropdown layout */
+.rdp-month_caption {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  height: auto !important;
+}
+
+.rdp-dropdown_root {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+}
+
+.rdp-dropdown_root .rdp-dropdown {
+  opacity: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  appearance: auto !important;
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0.75rem !important;
+  padding: 0.35rem 1.75rem 0.35rem 0.6rem !important;
+  font-size: 0.825rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  outline: none !important;
+  transition: all 0.2s !important;
+  font-family: inherit !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+.rdp-dropdown_root .rdp-dropdown:hover {
+  border-color: var(--primary) !important;
+  background: var(--muted) !important;
+}
+
+.rdp-dropdown_root .rdp-caption_label,
+.rdp-dropdown_root .rdp-chevron {
+  display: none !important;
 }
