@@ -1,7 +1,20 @@
 import { useState, useEffect } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, ArrowRight, Loader2, Sparkles, RotateCcw, AlertTriangle } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  Sparkles,
+  RotateCcw,
+  AlertTriangle,
+  Users,
+  User,
+  Zap,
+  BookOpen,
+  Heart,
+  TrendingUp
+} from "lucide-react"
 
 export const Route = createFileRoute("/test")({ component: TestWizard })
 
@@ -15,16 +28,26 @@ function TestWizard() {
   
   // Registration and config metadata
   const [userMetadata, setUserMetadata] = useState<any>(null)
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [answers, setAnswers] = useState<number[]>([])
+  const [testMode, setTestMode] = useState<"adaptive" | "precision">("precision")
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStep, setSubmitStep] = useState(0) // Step of the submission processing loader
+  const [submitStep, setSubmitStep] = useState(0)
   const [errorMsg, setErrorMsg] = useState("")
   const [showResetModal, setShowResetModal] = useState(false)
 
-  // Stepper state
+  // v0.2 Adaptive Mode States
+  const [answersV2, setAnswersV2] = useState<any>({})
+  const [currentTier, setCurrentTier] = useState<"tier_1" | "tier_2" | "tier_3" | "tier_4" | null>("tier_1")
+  const [v2Questions, setV2Questions] = useState<any[]>([])
+  const [, setV2Status] = useState<string>("incomplete")
+  const [v2Group, setV2Group] = useState<any>(null)
+  const [v2Schema, setV2Schema] = useState<any>(null)
+
+  // v0.1 / Precision States
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [answers, setAnswers] = useState<number[]>([])
   const [currentPage, setCurrentPage] = useState(0)
+  
   const QUESTIONS_PER_PAGE = 8
   const TOTAL_PAGES = 5 // 40 / 8 = 5
 
@@ -36,47 +59,226 @@ function TestWizard() {
         navigate({ to: "/" })
         return
       }
-      setUserMetadata(JSON.parse(savedMetadata))
+      const parsed = JSON.parse(savedMetadata)
+      setUserMetadata(parsed)
+      setTestMode(parsed.testMode || "precision")
     } catch (e) {
       console.error(e)
       navigate({ to: "/" })
     }
   }, [navigate])
 
-  // 2. Fetch questions on load
+  // 2. Fetch questions or v0.2 schema on load
   useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        setIsLoading(true)
-        // First try to fetch from the live URL
-        const response = await fetch("https://tb40.insantaqwa.org/api/v0.1/tb40/questions.json")
-        if (!response.ok) throw new Error("API responded with an error")
-        const data = await response.json()
-        
-        const qList = data.parts?.tb40Dewasa?.questions || []
-        setQuestions(qList)
-        initializeAnswers(qList)
-      } catch (err) {
-        console.warn("Could not load questions from live API. Loading local backup...", err)
+    if (!userMetadata) return
+
+    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
+    const mode = userMetadata.testMode || "precision"
+
+    const loadAssessmentData = async () => {
+      setIsLoading(true)
+      setErrorMsg("")
+
+      if (mode === "adaptive") {
         try {
-          const response = await fetch("/questions.json")
-          const data = await response.json()
-          const qList = data.parts?.tb40Dewasa?.questions || []
+          let schemaData
+          if (userMetadata.apiType === "live") {
+            const endpoint = `${userMetadata.apiUrl}/api/v0.2/${type}/schema`
+            const response = await fetch(endpoint)
+            if (!response.ok) throw new Error("Gagal memuat skema v0.2 dari server")
+            schemaData = await response.json()
+          } else {
+            // Offline fallback
+            const response = await fetch("/questions_v2.json")
+            const allSchemas = await response.json()
+            schemaData = allSchemas[type]
+          }
+          setV2Schema(schemaData)
+          
+          // Load answers from localStorage if any
+          const savedAnswersV2 = localStorage.getItem("tb40_answers_v2")
+          if (savedAnswersV2) {
+            const parsed = JSON.parse(savedAnswersV2)
+            setAnswersV2(parsed)
+            await runV2Evaluation(parsed, schemaData)
+          } else {
+            await runV2Evaluation({}, schemaData)
+          }
+        } catch (err) {
+          console.warn("Failed to load v0.2 schema, trying offline fallback...", err)
+          try {
+            const response = await fetch("/questions_v2.json")
+            const allSchemas = await response.json()
+            const schemaData = allSchemas[type]
+            setV2Schema(schemaData)
+            await runV2Evaluation({}, schemaData)
+          } catch (e) {
+            setErrorMsg("Gagal memuat semua skema pertanyaan. Silakan periksa koneksi internet Anda.")
+          }
+        } finally {
+          setIsLoading(false)
+        }
+      } 
+      // Precision Mode (v0.1)
+      else {
+        try {
+          let qList = []
+          if (userMetadata.apiType === "live") {
+            const response = await fetch(`${userMetadata.apiUrl}/api/v0.1/${type}/questions.json`)
+            if (!response.ok) throw new Error("API responded with an error")
+            const data = await response.json()
+            qList = data.parts?.[type === "tb40anak" ? "tb40anak" : "tb40Dewasa"]?.questions || []
+          } else {
+            const response = await fetch("/questions.json")
+            const data = await response.json()
+            qList = data.parts?.[type === "tb40anak" ? "tb40anak" : "tb40Dewasa"]?.questions || []
+          }
           setQuestions(qList)
           initializeAnswers(qList)
-        } catch (localErr) {
-          setErrorMsg("Gagal memuat pertanyaan tes. Silakan periksa koneksi Anda.")
-          console.error(localErr)
+        } catch (err) {
+          console.warn("Could not load v0.1 questions. Loading local fallback...", err)
+          try {
+            const response = await fetch("/questions.json")
+            const data = await response.json()
+            const qList = data.parts?.[type === "tb40anak" ? "tb40anak" : "tb40Dewasa"]?.questions || []
+            setQuestions(qList)
+            initializeAnswers(qList)
+          } catch (localErr) {
+            setErrorMsg("Gagal memuat lembar pertanyaan.")
+          }
+        } finally {
+          setIsLoading(false)
         }
-      } finally {
-        setIsLoading(false)
       }
     }
 
-    fetchQuestions()
-  }, [])
+    loadAssessmentData()
+  }, [userMetadata])
 
-  // Initialize answers with default 60 (standard middle-high score)
+  // Run v0.2 evaluation
+  const runV2Evaluation = async (answers: any, schema: any) => {
+    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
+    
+    // Check if we are running in mock/offline mode
+    if (userMetadata.apiType === "mock" || !userMetadata.apiUrl) {
+      const { tier_1, tier_2, tier_3 } = answers || {}
+      
+      if (!tier_1) {
+        setV2Status("incomplete")
+        setCurrentTier("tier_1")
+        setV2Questions(schema.tiers.tier_1.questions)
+        return
+      }
+      
+      if (!tier_2) {
+        setV2Status("incomplete")
+        setCurrentTier("tier_2")
+        setV2Questions(schema.tiers.tier_2.questions)
+        return
+      }
+      
+      const groupKey = `${tier_2}_${tier_1}`
+      const groupInfo = schema.tiers.tier_3.mapping[groupKey]
+      if (!groupInfo) {
+        setErrorMsg("Kombinasi jawaban tidak valid.")
+        return
+      }
+      setV2Group(groupInfo)
+      
+      if (!tier_3 || Object.keys(tier_3).length < groupInfo.questions.length) {
+        setV2Status("analyzing")
+        setCurrentTier("tier_3")
+        
+        // Fetch specific questions from /questions.json
+        try {
+          const response = await fetch("/questions.json")
+          const data = await response.json()
+          const allQuestions = data.parts?.[type === "tb40anak" ? "tb40anak" : "tb40Dewasa"]?.questions || []
+          const filteredQ = allQuestions.filter((q: any) => 
+            groupInfo.questions.includes(`q${q.index}`)
+          )
+          setV2Questions(filteredQ.map((q: any) => ({ id: `q${q.index}`, text: q.question, index: q.index })))
+        } catch (e) {
+          setErrorMsg("Gagal memuat pertanyaan deep-dive.")
+        }
+        return
+      }
+      
+      setV2Status("complete")
+      setCurrentTier(null)
+      return
+    }
+    
+    // Live mode evaluation via API
+    try {
+      const response = await fetch(`${userMetadata.apiUrl}/api/v0.2/${type}/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers }),
+      })
+      
+      if (!response.ok) throw new Error("Gagal mengevaluasi kemajuan")
+      const data = await response.json()
+      
+      setV2Status(data.status)
+      setCurrentTier(data.next_tier)
+      setV2Group(data.group)
+      
+      if (data.status === "complete") {
+        localStorage.setItem("tb40_result", JSON.stringify(data))
+        navigate({ to: "/result" as any })
+      } else {
+        const mappedQuestions = (data.questions || []).map((q: any) => ({
+          id: q.id || `q${q.index}`,
+          text: q.text || q.question,
+          index: q.index
+        }))
+        setV2Questions(mappedQuestions)
+      }
+    } catch (err) {
+      console.error("API evaluate failed, trying offline fallback...", err)
+      // Switch metadata temporarily to mock for fallback run
+      setUserMetadata((prev: any) => ({ ...prev, apiType: "mock" }))
+      runV2Evaluation(answers, schema)
+    }
+  }
+
+  // Save V2 answers
+  const handleV2Answer = async (tier: "tier_1" | "tier_2" | "tier_3", value: any) => {
+    let newAnswers = { ...answersV2 }
+    if (tier === "tier_3") {
+      newAnswers.tier_3 = { ...newAnswers.tier_3, ...value }
+    } else {
+      newAnswers[tier] = value
+      if (tier === "tier_1") {
+        delete newAnswers.tier_2
+        delete newAnswers.tier_3
+      } else if (tier === "tier_2") {
+        delete newAnswers.tier_3
+      }
+    }
+    setAnswersV2(newAnswers)
+    localStorage.setItem("tb40_answers_v2", JSON.stringify(newAnswers))
+    
+    if (tier !== "tier_3") {
+      await runV2Evaluation(newAnswers, v2Schema)
+    }
+  }
+
+  // V2 Back Navigation
+  const handleV2Back = () => {
+    if (currentTier === "tier_2") {
+      setCurrentTier("tier_1")
+      setV2Questions(v2Schema.tiers.tier_1.questions)
+    } else if (currentTier === "tier_3") {
+      setCurrentTier("tier_2")
+      setV2Questions(v2Schema.tiers.tier_2.questions)
+    } else {
+      setShowResetModal(true)
+    }
+  }
+
+  // Initialize answers for v0.1 (Precision Mode)
   const initializeAnswers = (qList: Question[]) => {
     try {
       const savedAnswers = localStorage.getItem("tb40_answers")
@@ -87,14 +289,30 @@ function TestWizard() {
           return
         }
       }
-      // If no saved answers, initialize array with default value of 60
-      setAnswers(new Array(qList.length).fill(60))
+      
+      // Upgrade Path: If we had V2 answers, migrate Tier 3 answers to v0.1 slots
+      const savedAnswersV2 = localStorage.getItem("tb40_answers_v2")
+      const initial = new Array(qList.length).fill(60)
+      if (savedAnswersV2) {
+        const parsedV2 = JSON.parse(savedAnswersV2)
+        if (parsedV2.tier_3) {
+          Object.entries(parsedV2.tier_3).forEach(([qId, score]) => {
+            const index = parseInt(qId.replace("q", "")) - 1
+            if (index >= 0 && index < initial.length) {
+              initial[index] = Number(score)
+            }
+          })
+        }
+      }
+      
+      setAnswers(initial)
+      localStorage.setItem("tb40_answers", JSON.stringify(initial))
     } catch (e) {
       setAnswers(new Array(qList.length).fill(60))
     }
   }
 
-  // Save answers to localStorage on change
+  // Save V1 answer
   const handleAnswerChange = (questionIndex: number, val: number) => {
     const newAnswers = [...answers]
     newAnswers[questionIndex] = val
@@ -102,31 +320,23 @@ function TestWizard() {
     localStorage.setItem("tb40_answers", JSON.stringify(newAnswers))
   }
 
-  // Reset all answers and go to frontpage (risk losing data)
   const confirmResetAndRestart = () => {
     localStorage.removeItem("tb40_umum")
     localStorage.removeItem("tb40_answers")
+    localStorage.removeItem("tb40_answers_v2")
     localStorage.removeItem("tb40_result")
     setShowResetModal(false)
     navigate({ to: "/" })
   }
 
-  // Get score verbal evaluation tag
   const getScoreTag = (score: number) => {
     if (score <= 20) return { label: "Sangat Lemah", color: "text-rose-600 bg-rose-50 dark:bg-rose-950/20" }
     if (score <= 40) return { label: "Kelemahan Potensial", color: "text-orange-600 bg-orange-50 dark:bg-orange-950/20" }
     if (score <= 60) return { label: "Cukup / Seimbang", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/20" }
     if (score <= 80) return { label: "Bakat Kuat", color: "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20" }
-    return { label: "Bakat Unggul / Dominan", color: "text-teal-700 bg-teal-50 dark:bg-teal-950/20 font-bold" }
+    return { label: "Bakat Unggul", color: "text-teal-700 bg-teal-50 dark:bg-teal-950/20 font-bold" }
   }
 
-  // Paginated questions list
-  const startIdx = currentPage * QUESTIONS_PER_PAGE
-  const currentQuestions = questions.slice(startIdx, startIdx + QUESTIONS_PER_PAGE)
-
-  // Stepper progress helper
-  const progressPercent = Math.round(((currentPage + 1) / TOTAL_PAGES) * 100)
-  
   // Dynamic submission loader step changes
   useEffect(() => {
     if (isSubmitting) {
@@ -137,10 +347,12 @@ function TestWizard() {
     }
   }, [isSubmitting])
 
+  // Submit v0.1 Precision Test
   const submitTest = async () => {
     setIsSubmitting(true)
     setSubmitStep(0)
     
+    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
     const payload = {
       parts: {
         umum: {
@@ -154,13 +366,12 @@ function TestWizard() {
           },
           tanggal: userMetadata.tanggal,
         },
-        tb40: answers,
+        [type]: answers,
       },
     }
 
     try {
-      // 1. Attempt to calculate via the live API
-      const response = await fetch("https://tb40.insanmustaqbal.or.id/api/v0.1/tb40/calculation", {
+      const response = await fetch(`${userMetadata.apiUrl}/api/v0.1/${type}/calculation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -171,10 +382,8 @@ function TestWizard() {
       if (!response.ok) throw new Error("Calculation failed on live API")
       const resultData = await response.json()
       
-      // Store result and route to results screen
       localStorage.setItem("tb40_result", JSON.stringify(resultData))
       
-      // Artificial delay to let the processing steps complete for beautiful premium UX
       setTimeout(() => {
         setIsSubmitting(false)
         navigate({ to: "/result" as any })
@@ -182,13 +391,10 @@ function TestWizard() {
       
     } catch (err) {
       console.warn("Could not run calculation on live API. Using local mock simulation data...", err)
-      
-      // Fallback: fetch from local mockup result.json
       try {
         const response = await fetch("/result.json")
         const resultData = await response.json()
         
-        // Dynamic replacement of names and date to match custom details in mockup
         if (resultData.parts) {
           resultData.parts.umum = payload.parts.umum
         }
@@ -199,12 +405,92 @@ function TestWizard() {
           setIsSubmitting(false)
           navigate({ to: "/result" as any })
         }, 800)
-        
       } catch (localErr) {
         setIsSubmitting(false)
-        setErrorMsg("Gagal melakukan perhitungan bakat. Silakan periksa koneksi internet Anda.")
-        console.error(localErr)
+        setErrorMsg("Gagal melakukan perhitungan bakat.")
       }
+    }
+  }
+
+  // Submit v0.2 Adaptive Test
+  const submitV2Test = async () => {
+    setIsSubmitting(true)
+    setSubmitStep(0)
+    
+    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
+    
+    if (userMetadata.apiType === "mock" || !userMetadata.apiUrl) {
+      // Offline fallback evaluation simulation
+      const interval = setInterval(() => {
+        setSubmitStep((prev) => (prev < 3 ? prev + 1 : prev))
+      }, 500)
+      
+      try {
+        const response = await fetch("/result.json")
+        const resultData = await response.json()
+        const tb40Data = resultData.parts?.tb40 || resultData
+        
+        // Generate mock complete response representing 3 traits
+        const mockResult = {
+          version: "v0.2",
+          status: "complete",
+          result: {
+            primary_group: v2Group.label,
+            description: `Berdasarkan jawabanmu, kamu termasuk tipe ${v2Group.label}.`,
+            traits: v2Questions.map((q: any) => {
+              // Find pillar data in original mock calculation
+              const index = q.index
+              const matchedPillar = tb40Data.tb40Result["40"]?.find((p: any) => p.questionIndex == index) || {
+                name: q.text,
+                pillar: { no: index, group: "40" },
+                data: { nama_lengkap: q.text, definisi: "Informasi kepribadian adaptif." }
+              }
+              
+              return {
+                ...matchedPillar,
+                score: answersV2.tier_3?.[q.id] || 60,
+                rank: 1,
+                color: "#40bf40"
+              }
+            })
+          }
+        }
+        
+        localStorage.setItem("tb40_result", JSON.stringify(mockResult))
+        
+        setTimeout(() => {
+          clearInterval(interval)
+          setIsSubmitting(false)
+          navigate({ to: "/result" as any })
+        }, 2200)
+      } catch (err) {
+        clearInterval(interval)
+        setIsSubmitting(false)
+        setErrorMsg("Gagal memproses hasil offline.")
+      }
+      return
+    }
+
+    try {
+      const response = await fetch(`${userMetadata.apiUrl}/api/v0.2/${type}/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: answersV2 }),
+      })
+      
+      if (!response.ok) throw new Error("Gagal mengirim hasil tes")
+      const resultData = await response.json()
+      
+      localStorage.setItem("tb40_result", JSON.stringify(resultData))
+      
+      setTimeout(() => {
+        setIsSubmitting(false)
+        navigate({ to: "/result" as any })
+      }, 1500)
+    } catch (err) {
+      console.error(err)
+      setIsSubmitting(false)
+      setErrorMsg("Gagal mengirim hasil penilaian ke server.")
     }
   }
 
@@ -213,7 +499,9 @@ function TestWizard() {
       <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6">
         <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
         <h3 className="font-heading font-medium text-lg">Memuat Lembar Penilaian</h3>
-        <p className="text-sm text-muted-foreground mt-1">Mengambil 40 pilar pertanyaan...</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {testMode === "adaptive" ? "Mempersiapkan pertanyaan adaptif..." : "Mengambil 40 pilar pertanyaan..."}
+        </p>
       </div>
     )
   }
@@ -255,6 +543,306 @@ function TestWizard() {
       </div>
     )
   }
+
+  // ----------------------------------------------------
+  // v0.2 ADAPTIVE ASSESSMENT RENDER WORKFLOW
+  // ----------------------------------------------------
+  if (testMode === "adaptive") {
+    let progressPercentV2 = 25
+    if (currentTier === "tier_2") progressPercentV2 = 50
+    if (currentTier === "tier_3") progressPercentV2 = 75
+    if (currentTier === null) progressPercentV2 = 100
+
+    return (
+      <>
+        <div className="min-h-screen bg-background text-foreground flex flex-col p-4 md:p-8">
+          <div className="max-w-4xl w-full mx-auto flex flex-col gap-6">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-4 mt-2">
+              <div>
+                <h2 className="font-heading font-semibold text-2xl text-foreground flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" /> Penilaian Cepat Adaptif (v0.2)
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Menilai untuk: <span className="font-semibold text-primary">{userMetadata?.nama?.lengkap}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowResetModal(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors px-2.5 py-1 rounded bg-secondary hover:bg-destructive/10 border border-border cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" /> Ulangi Tes
+              </button>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full flex flex-col gap-2">
+              <div className="flex justify-between items-center text-xs font-medium text-muted-foreground">
+                <span>
+                  {currentTier === "tier_1" && "Langkah 1: Energi Sosial"}
+                  {currentTier === "tier_2" && "Langkah 2: Orientasi Bakat"}
+                  {currentTier === "tier_3" && `Langkah 3: Pendalaman Klaster (${v2Group?.label || ""})`}
+                </span>
+                <span>{progressPercentV2}% Selesai</span>
+              </div>
+              <div className="w-full h-2 bg-secondary border border-border rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progressPercentV2}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Error message */}
+            {errorMsg && (
+              <div className="bg-destructive/10 border border-destructive/25 text-destructive p-3 rounded-lg flex items-center gap-2 text-sm">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
+            {/* TIER 1 - Energi Sosial */}
+            {currentTier === "tier_1" && v2Questions.length > 0 && (
+              <div className="flex flex-col gap-6 mt-4">
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col gap-4 text-center">
+                  <div className="inline-flex items-center gap-2 bg-secondary px-3 py-1 rounded-full text-xs font-medium self-center text-muted-foreground border border-border">
+                    <Users className="w-4 h-4 text-primary" /> Kepribadian Sosial
+                  </div>
+                  <h3 className="font-heading text-lg md:text-xl font-medium leading-relaxed max-w-2xl mx-auto">
+                    "{v2Questions[0].text}"
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleV2Answer("tier_1", 1)} // 1 = Introvert
+                    className={`border p-6 rounded-2xl text-left bg-card hover:border-primary/50 transition-all cursor-pointer group flex flex-col gap-2 ${
+                      answersV2.tier_1 === 1 ? "border-primary ring-1 ring-primary" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary group-hover:bg-primary/20">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-heading font-semibold text-base">Introvert</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                      Saya merasa lebih nyaman, berenergi, dan tenang saat menghabiskan waktu sendirian untuk berpikir dan berefleksi.
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() => handleV2Answer("tier_1", 2)} // 2 = Extrovert
+                    className={`border p-6 rounded-2xl text-left bg-card hover:border-primary/50 transition-all cursor-pointer group flex flex-col gap-2 ${
+                      answersV2.tier_1 === 2 ? "border-primary ring-1 ring-primary" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary group-hover:bg-primary/20">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-heading font-semibold text-base">Extrovert</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                      Saya merasa segar, gembira, dan bersemangat ketika berbaur, mengobrol, dan bersosialisasi dengan orang banyak.
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TIER 2 - Orientasi Bakat */}
+            {currentTier === "tier_2" && v2Questions.length > 0 && (
+              <div className="flex flex-col gap-6 mt-4">
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col gap-4 text-center">
+                  <div className="inline-flex items-center gap-2 bg-secondary px-3 py-1 rounded-full text-xs font-medium self-center text-muted-foreground border border-border">
+                    <TrendingUp className="w-4 h-4 text-primary" /> Cara Kerja Dasar
+                  </div>
+                  <h3 className="font-heading text-lg md:text-xl font-medium leading-relaxed max-w-2xl mx-auto">
+                    "{v2Questions[0].text}"
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onClick={() => handleV2Answer("tier_2", 1)} // 1 = Karsa
+                    className={`border p-5 rounded-2xl text-left bg-card hover:border-primary/50 transition-all cursor-pointer group flex flex-col gap-2 ${
+                      answersV2.tier_2 === 1 ? "border-primary ring-1 ring-primary" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-heading font-semibold text-sm">Karsa (Aksi / Kerja Fisik)</h4>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">
+                      Saya adalah tipe praktis yang menyukai aksi nyata, senang langsung memulai pekerjaan, dan menyukai aktifitas bergerak.
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() => handleV2Answer("tier_2", 2)} // 2 = Cipta
+                    className={`border p-5 rounded-2xl text-left bg-card hover:border-primary/50 transition-all cursor-pointer group flex flex-col gap-2 ${
+                      answersV2.tier_2 === 2 ? "border-primary ring-1 ring-primary" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-heading font-semibold text-sm">Cipta (Pikir / Logika)</h4>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">
+                      Saya senang memikirkan teori, menganalisis pola, merancang konsep, dan belajar secara visual atau kognitif.
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() => handleV2Answer("tier_2", 3)} // 3 = Rasa
+                    className={`border p-5 rounded-2xl text-left bg-card hover:border-primary/50 transition-all cursor-pointer group flex flex-col gap-2 ${
+                      answersV2.tier_2 === 3 ? "border-primary ring-1 ring-primary" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                        <Heart className="w-4 h-4" />
+                      </div>
+                      <h4 className="font-heading font-semibold text-sm">Rasa (Hati / Emosi)</h4>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">
+                      Saya menaruh kepedulian tinggi terhadap perasaan sesama, peka terhadap harmoni sosial, dan mengedepankan empati.
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TIER 3 - Group Specific Sliders */}
+            {currentTier === "tier_3" && v2Questions.length > 0 && (
+              <div className="flex flex-col gap-6 mt-4">
+                <div className="bg-card border border-border p-4 rounded-xl text-center flex flex-col gap-1">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold">Deep-Dive Kelompok</span>
+                  <h4 className="font-heading font-semibold text-base">Klaster Evaluasi: {v2Group?.label || ""}</h4>
+                  <p className="text-xs text-muted-foreground">Silakan jawab 3 pernyataan spesifik di bawah ini untuk merumuskan bakat dominan Anda.</p>
+                </div>
+
+                {v2Questions.map((q) => {
+                  const score = answersV2.tier_3?.[q.id] ?? 60
+                  const tag = getScoreTag(score)
+
+                  return (
+                    <div
+                      key={q.id}
+                      className="bg-card border border-border rounded-xl p-5 md:p-6 shadow-sm flex flex-col gap-4"
+                    >
+                      <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                        <span className="text-[10px] font-mono text-muted-foreground font-semibold bg-secondary/80 px-2 py-0.5 rounded-full border border-border">
+                          Pilar {q.index}
+                        </span>
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors ${tag.color}`}>
+                          {tag.label}: {score}
+                        </span>
+                      </div>
+
+                      <h4 className="font-heading text-base md:text-lg font-medium leading-relaxed">
+                        "{q.text}"
+                      </h4>
+
+                      <div className="flex flex-col gap-2 mt-2">
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-muted-foreground font-mono">Sangat Kontra (0)</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={score}
+                            onChange={(e) => handleV2Answer("tier_3", { [q.id]: parseInt(e.target.value) })}
+                            className="flex-1 accent-primary h-1.5 bg-secondary rounded-full appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/30"
+                          />
+                          <span className="text-xs text-muted-foreground font-mono">Sangat Pro (100)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Navigation controls */}
+            <div className="flex items-center justify-between mt-8 mb-12 border-t border-border pt-6">
+              <Button
+                variant="secondary"
+                onClick={handleV2Back}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" /> Kembali
+              </Button>
+
+              {currentTier === "tier_3" && (
+                <Button
+                  onClick={submitV2Test}
+                  disabled={!answersV2.tier_3 || Object.keys(answersV2.tier_3).length < v2Questions.length}
+                  className="bg-primary hover:bg-primary/90 flex items-center gap-2 font-heading font-semibold shadow-md shadow-primary/20 px-6 py-5 cursor-pointer"
+                >
+                  Mulai Analisa Bakat <Sparkles className="w-4 h-4 animate-pulse" />
+                </Button>
+              )}
+            </div>
+
+          </div>
+        </div>
+
+        {/* Reset Modal */}
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
+            <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mt-0.5 animate-bounce">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex flex-col gap-1.5 text-left">
+                  <h3 className="font-heading font-semibold text-lg text-foreground">
+                    Ulangi Tes & Hapus Data?
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Apakah Anda yakin ingin mengulangi tes dari awal? Tindakan ini akan **menghapus semua data pendaftaran, jawaban, dan hasil analisis Anda secara permanen** dari perangkat ini.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end gap-2.5 mt-2 border-t border-border pt-4">
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="text-xs py-1.5 cursor-pointer shadow-none border-none hover:bg-muted"
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="destructive"
+                  type="button"
+                  onClick={confirmResetAndRestart}
+                  className="text-xs py-1.5 px-4 cursor-pointer bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold"
+                >
+                  Ya, Ulangi & Hapus
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ----------------------------------------------------
+  // v0.1 PRECISION ASSESSMENT RENDER WORKFLOW
+  // ----------------------------------------------------
+  const progressPercent = Math.round(((currentPage + 1) / TOTAL_PAGES) * 100)
+  const startIdx = currentPage * QUESTIONS_PER_PAGE
+  const currentQuestions = questions.slice(startIdx, startIdx + QUESTIONS_PER_PAGE)
 
   return (
     <>
@@ -372,7 +960,7 @@ function TestWizard() {
           ) : (
             <Button
               onClick={submitTest}
-              className="bg-primary hover:bg-primary/90 flex items-center gap-2 font-heading font-semibold shadow-md shadow-primary/20 px-6 py-5"
+              className="bg-primary hover:bg-primary/90 flex items-center gap-2 font-heading font-semibold shadow-md shadow-primary/20 px-6 py-5 cursor-pointer"
             >
               Mulai Analisa Bakat <Sparkles className="w-4 h-4 animate-pulse" />
             </Button>

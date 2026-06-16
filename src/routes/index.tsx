@@ -18,29 +18,50 @@ function LandingPage() {
   // Server Status State
   const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking")
   const [apiType, setApiType] = useState<"live" | "mock">("live")
+  const [apiUrl, setApiUrl] = useState("https://tb40.insanmustaqbal.or.id")
+  const [testMode, setTestMode] = useState<"adaptive" | "precision">("adaptive")
 
-  // Check connectivity to the live API
+  // Check connectivity to the live API (probe local API first)
   useEffect(() => {
     const checkServer = async () => {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 4000)
+      
       try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 4000)
-        
-        const response = await fetch("https://tb40.insanmustaqbal.or.id/api/v0.1/tb40/questions.json", {
+        // Try local server first
+        const localResponse = await fetch("http://localhost:4040/health", {
           signal: controller.signal,
         })
-        
-        clearTimeout(timeoutId)
-        if (response.ok) {
+        if (localResponse.ok) {
+          clearTimeout(timeoutId)
           setServerStatus("online")
           setApiType("live")
-        } else {
-          throw new Error("Server returned non-ok status")
+          setApiUrl("http://localhost:4040")
+          return
         }
       } catch (err) {
+        console.warn("Failed to reach local API on port 4040, probing production API...", err)
+      }
+
+      try {
+        // Try production server
+        const prodResponse = await fetch("https://tb40.insanmustaqbal.or.id/api/v0.1/tb40/questions.json", {
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        if (prodResponse.ok) {
+          setServerStatus("online")
+          setApiType("live")
+          setApiUrl("https://tb40.insanmustaqbal.or.id")
+        } else {
+          throw new Error("Production server returned non-ok status")
+        }
+      } catch (err) {
+        clearTimeout(timeoutId)
         console.warn("Failed to reach live API server. Falling back to local mockup sandbox.", err)
         setServerStatus("offline")
         setApiType("mock")
+        setApiUrl("")
       }
     }
     
@@ -115,6 +136,8 @@ function LandingPage() {
       },
       tanggal: new Date().toLocaleDateString("id-ID"),
       apiType,
+      apiUrl,
+      testMode,
     }
     
     localStorage.setItem("tb40_umum", JSON.stringify(umumData))
@@ -271,6 +294,37 @@ function LandingPage() {
                 className="bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-muted-foreground/50 transition-all"
                 required
               />
+            </div>
+
+            {/* Test Mode input */}
+            <div className="flex flex-col gap-2 bg-background border border-border rounded-xl p-3 mt-1">
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider select-none">Pilih Metode Penilaian</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setTestMode("adaptive")}
+                  className={`px-3 py-2.5 text-xs font-medium rounded-lg border text-center transition-all cursor-pointer select-none flex flex-col items-center gap-1 ${
+                    testMode === "adaptive"
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-background border-border text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-muted/10"
+                  }`}
+                >
+                  <span className="font-semibold text-xs">Metode Cepat (v0.2)</span>
+                  <span className="text-[10px] opacity-85">~5 Pertanyaan</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTestMode("precision")}
+                  className={`px-3 py-2.5 text-xs font-medium rounded-lg border text-center transition-all cursor-pointer select-none flex flex-col items-center gap-1 ${
+                    testMode === "precision"
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-background border-border text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-muted/10"
+                  }`}
+                >
+                  <span className="font-semibold text-xs">Metode Lengkap (v0.1)</span>
+                  <span className="text-[10px] opacity-85">40 Pertanyaan Penuh</span>
+                </button>
+              </div>
             </div>
 
             {formError && (

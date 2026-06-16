@@ -14,7 +14,8 @@ import {
   FileText,
   HelpCircle,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRight
 } from "lucide-react"
 
 export const Route = createFileRoute("/result")({ component: ResultPage })
@@ -27,6 +28,10 @@ function ResultPage() {
   const [tb40Result, setTb40Result] = useState<any>(null)
   const [tb40ResultRanked, setTb40ResultRanked] = useState<any>(null)
   const [tb40Presentation, setTb40Presentation] = useState<any>(null)
+  
+  // v0.2 States
+  const [isV2, setIsV2] = useState(false)
+  const [v2Result, setV2Result] = useState<any>(null)
   
   // UI State
   const [activeSection, setActiveSection] = useState("ringkasan")
@@ -55,12 +60,18 @@ function ResultPage() {
       const parsedUmum = JSON.parse(savedUmum)
       const parsedResult = JSON.parse(savedResult)
       
-      const tb40Data = parsedResult.parts?.tb40 || parsedResult
-      
       setUmum(parsedUmum)
-      setTb40Result(tb40Data.tb40Result || tb40Data.result)
-      setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
-      setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+
+      if (parsedResult.version === "v0.2" || (parsedResult.status === "complete" && parsedResult.result)) {
+        setIsV2(true)
+        setV2Result(parsedResult.result)
+      } else {
+        setIsV2(false)
+        const tb40Data = parsedResult.parts?.tb40 || parsedResult
+        setTb40Result(tb40Data.tb40Result || tb40Data.result)
+        setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
+        setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+      }
 
     } catch (e) {
       console.error("Failed to parse stored results", e)
@@ -93,15 +104,232 @@ function ResultPage() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  if (!umum || !tb40Result) return null
+  if (!umum || (!tb40Result && !isV2)) return null
 
   // Confirmation for Reset
   const confirmResetAndRestart = () => {
     localStorage.removeItem("tb40_umum")
     localStorage.removeItem("tb40_answers")
+    localStorage.removeItem("tb40_answers_v2")
     localStorage.removeItem("tb40_result")
     navigate({ to: "/" as any })
   }
+
+  if (isV2 && v2Result) {
+    const savedAnswersV2 = localStorage.getItem("tb40_answers_v2")
+    const answersV2 = savedAnswersV2 ? JSON.parse(savedAnswersV2) : null
+
+    const handleUpgradeToPrecision = () => {
+      const updatedUmum = {
+        ...umum,
+        testMode: "precision",
+        requestPrecision: true
+      }
+      localStorage.setItem("tb40_umum", JSON.stringify(updatedUmum))
+      navigate({ to: "/test" as any })
+    }
+
+    return (
+      <>
+        <div className="min-h-screen bg-background text-foreground flex flex-col relative print:bg-white print:text-black">
+          <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-primary/5 to-transparent -z-10 pointer-events-none" />
+          
+          <div className="max-w-4xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
+            
+            {/* Header Controls */}
+            <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
+              <button
+                onClick={() => navigate({ to: "/test" as any })}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <Undo2 className="w-3.5 h-3.5" /> Kembali Ke Penilaian
+              </button>
+              
+              <button
+                onClick={() => setShowResetModal(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Hapus & Ulangi Tes
+              </button>
+            </div>
+
+            {/* Profile Intro */}
+            <div className="flex flex-col gap-4 mt-2">
+              <div className="inline-flex items-center self-start gap-1.5 bg-primary/10 px-3 py-1 rounded-full text-xs font-semibold text-primary">
+                <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Hasil Penilaian Cepat (v0.2)
+              </div>
+              <h1 className="font-heading text-4xl md:text-5xl font-bold tracking-tight text-foreground">
+                Tafsir Bakat <span className="text-primary italic">{umum.nama.panggilan}</span>
+              </h1>
+              <p className="text-muted-foreground text-sm font-mono">
+                Subjek: <span className="font-semibold text-foreground">{umum.nama.lengkap}</span> &bull; 
+                Usia: <span className="font-semibold text-foreground">{umum.usia} Tahun</span> &bull; 
+                Tanggal: <span className="font-semibold text-foreground">{umum.tanggal}</span>
+              </p>
+            </div>
+
+            {/* Primary Group Banner */}
+            <div className="bg-card border border-border rounded-2xl p-6 md:p-8 shadow-sm border-l-4 border-l-primary relative overflow-hidden flex flex-col gap-2">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10" />
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-bold">Klaster Kepribadian Utama</span>
+              <h2 className="font-heading font-semibold text-2xl md:text-3xl text-primary mt-1">
+                {v2Result.primary_group}
+              </h2>
+              <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{v2Result.description}</p>
+            </div>
+
+            {/* Traits Details */}
+            <div className="flex flex-col gap-4">
+              <h3 className="font-heading font-semibold text-xl flex items-center gap-2 border-b border-border pb-3">
+                <BookOpen className="w-5 h-5 text-primary" /> Rincian Sifat yang Dievaluasi
+              </h3>
+              
+              <div className="flex flex-col gap-4">
+                {v2Result.traits.map((p: any) => {
+                  const localScore = answersV2?.tier_3?.[`q${p.questionIndex}`] ?? answersV2?.tier_3?.[p.pillar?.no || p.questionIndex]
+                  const score = Number(p.score ?? localScore ?? 60)
+                  let ratingBg = "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                  let ratingBorder = "border-amber-200 dark:border-amber-950/20"
+                  if (score >= 80) {
+                    ratingBg = "bg-teal-50 text-teal-800 border-teal-200 dark:bg-teal-950/20 dark:text-teal-400 font-semibold"
+                    ratingBorder = "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
+                  } else if (score >= 60) {
+                    ratingBg = "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
+                    ratingBorder = "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
+                  } else if (score <= 40) {
+                    ratingBg = "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                    ratingBorder = "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
+                  }
+
+                  return (
+                    <div
+                      key={p.name}
+                      className={`bg-card border rounded-2xl p-5 shadow-xs flex flex-col gap-3 transition-all ${ratingBorder}`}
+                    >
+                      <div className="flex items-center justify-between border-b border-border/70 pb-2">
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-mono text-xs font-bold text-primary bg-secondary px-2 py-0.5 rounded border border-border">
+                            Pilar {p.pillar?.no || p.questionIndex}
+                          </span>
+                          <h4 className="font-heading font-semibold text-base text-foreground">
+                            {p.data?.nama_lengkap || p.name}
+                          </h4>
+                        </div>
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${ratingBg}`}>
+                          Skor: {score}
+                        </span>
+                      </div>
+
+                      {p.data?.arab && (
+                        <div className="text-right -mt-1">
+                          <span className="font-heading font-bold text-xl text-primary/80 font-arabic">
+                            {p.data.arab}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-mono uppercase text-muted-foreground font-semibold">Definisi Pilar</span>
+                        <p className="text-xs text-foreground/90 leading-relaxed">
+                          {p.data?.definisi || "Belum ada definisi terperinci."}
+                        </p>
+                      </div>
+
+                      {(p.data?.lalai_nama_lengkap || p.data?.lebih_nama_lengkap) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 bg-secondary/40 border border-border/60 p-4 rounded-xl text-xs">
+                          {p.data?.lalai_nama_lengkap && (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                                ⚠️ Potensi Lalai
+                              </span>
+                              <h5 className="font-medium text-foreground">{p.data.lalai_nama_lengkap}</h5>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{p.data.lalai_definisi}</p>
+                            </div>
+                          )}
+                          {p.data?.lebih_nama_lengkap && (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                ⚠️ Potensi Berlebihan
+                              </span>
+                              <h5 className="font-medium text-foreground">{p.data.lebih_nama_lengkap}</h5>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{p.data.lebih_definisi}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Upgrade CTA Section */}
+            <div className="bg-card border border-border rounded-2xl p-6 md:p-8 mt-4 text-center flex flex-col items-center gap-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10" />
+              <div className="p-3 bg-primary/10 rounded-full border border-primary/20 text-primary">
+                <Sparkles className="w-8 h-8 animate-pulse" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <h3 className="font-heading font-semibold text-lg text-foreground">Buka 2 Peta Visual & Laporan Lengkap 40 Pilar</h3>
+                <p className="text-xs text-muted-foreground max-w-lg leading-relaxed">
+                  Penilaian cepat adaptif (v0.2) Anda hanya menguji 3 pilar spesifik. Dapatkan analisis visual premium yang memetakan kepribadian lengkap Anda ke dalam 40 Pilar Mulia dengan melengkapi 37 pertanyaan sisa.
+                </p>
+              </div>
+              <Button
+                onClick={handleUpgradeToPrecision}
+                className="mt-2 bg-primary hover:bg-primary/90 flex items-center gap-2 font-heading font-semibold shadow-md shadow-primary/25 px-6 py-5 cursor-pointer"
+              >
+                Lengkapi Penilaian Presisi (Upgrade) <ArrowRight className="w-4 h-4" />
+              </Button>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Reset / Restart Modal */}
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
+            <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mt-0.5 animate-bounce">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex flex-col gap-1.5 text-left">
+                  <h3 className="font-heading font-semibold text-lg text-foreground">
+                    Hapus Data & Mulai Ulang?
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Tindakan ini akan **menghapus semua hasil analisis cepat Anda secara permanen** dari perangkat ini.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end gap-2.5 mt-2 border-t border-border pt-4">
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="text-xs py-1.5 cursor-pointer shadow-none border-none hover:bg-muted"
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="destructive"
+                  type="button"
+                  onClick={confirmResetAndRestart}
+                  className="text-xs py-1.5 px-4 cursor-pointer bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold"
+                >
+                  Ya, Hapus & Ulangi
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+
 
   const scoreToColor = (score: number): string => {
     score = Math.max(0, Math.min(100, score));
