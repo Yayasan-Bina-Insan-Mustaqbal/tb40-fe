@@ -2,10 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
-import { ChartAreaInteractive } from '@/components/chart-area-interactive'
-import { SectionCards } from '@/components/section-cards'
-import { DataTable } from '@/components/data-table'
-import tableData from '@/app/dashboard/data.json'
+import { AnalyticsDashboard } from '@/components/analytics-dashboard'
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: () => {
     const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true'
@@ -23,9 +20,7 @@ function DashboardPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <ChartAreaInteractive />
-          <SectionCards />
-          <DataTable data={tableData} />
+          <AnalyticsDashboard />
         </div>
       </SidebarInset>
     </SidebarProvider>
