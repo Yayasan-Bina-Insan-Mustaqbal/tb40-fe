@@ -5,6 +5,9 @@ import { SiteHeader } from '@/components/site-header'
 import { AnalyticsDashboard } from '@/components/analytics-dashboard'
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: () => {
+    // Skip auth check during SSR
+    if (typeof window === 'undefined') return
+    
     const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true'
     if (!isLoggedIn) {
       throw redirect({ to: '/login' })
