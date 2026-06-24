@@ -1,6 +1,7 @@
-import { useEffect } from "react"
-import posthog from "posthog-js"
+import { PostHogProvider } from "posthog-js/react"
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "@/components/ui/sonner"
 
 import appCss from "../styles.css?url"
 
@@ -35,28 +36,29 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const posthogKey = import.meta.env.VITE_POSTHOG_KEY || "phc_mock_key_for_dev_tb40"
-      const posthogHost = import.meta.env.VITE_POSTHOG_HOST || "http://localhost:4000"
-      
-      posthog.init(posthogKey, {
-        api_host: posthogHost,
-        person_profiles: 'identified_only',
-        loaded: (ph) => {
-          if (import.meta.env.DEV) ph.debug()
-        }
-      })
-    }
-  }, [])
-
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
-        {children}
+        <PostHogProvider
+          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
+          options={{
+            api_host: "/ingest",
+            ui_host:
+              import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
+              "https://eu.posthog.com",
+            person_profiles: "identified_only",
+            capture_exceptions: true,
+            debug: import.meta.env.DEV,
+          }}
+        >
+          <TooltipProvider delayDuration={300}>
+            {children}
+          </TooltipProvider>
+          <Toaster richColors position="top-right" />
+        </PostHogProvider>
         <Scripts />
       </body>
     </html>

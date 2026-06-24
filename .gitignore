@@ -16,3 +16,4 @@ todos.json
 
 # test artifacts
 test-results/
+.env

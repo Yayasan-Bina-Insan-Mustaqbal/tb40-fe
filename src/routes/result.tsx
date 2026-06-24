@@ -6,6 +6,14 @@ import { QRCodeSVG } from "qrcode.react"
 import { BarChart as EBarChart } from "@devstool/shadcn-echarts"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   Sparkles,
   Printer,
   TrendingUp,
@@ -23,39 +31,42 @@ import {
   Share2,
   Copy,
   Check,
-  X,
-  BarChart2
+  BarChart2,
 } from "lucide-react"
 
 export const Route = createFileRoute("/result")({ component: ResultPage })
 
 function ResultPage() {
   const navigate = useNavigate()
-  
+
   // Local Data State
   const [umum, setUmum] = useState<any>(null)
   const [tb40Result, setTb40Result] = useState<any>(null)
   const [tb40ResultRanked, setTb40ResultRanked] = useState<any>(null)
   const [tb40Presentation, setTb40Presentation] = useState<any>(null)
-  
+
   // v0.2 States
   const [isV2, setIsV2] = useState(false)
   const [v2Result, setV2Result] = useState<any>(null)
-  
+
   // UI State
   const [activeSection, setActiveSection] = useState("ringkasan")
   const [isCalculating, setIsCalculating] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareUrl, setShareUrl] = useState("")
   const [isCopied, setIsCopied] = useState(false)
-  
+
   const [chart1Mode, setChart1Mode] = useState<"score" | "rank">("score")
   const [chart2Mode, setChart2Mode] = useState<"score" | "rank">("score")
-  
+
   const [mapTab, setMapTab] = useState<"score" | "rank" | "both">("both")
   const [searchTerm, setSearchTerm] = useState("")
-  const [filterBy, setFilterBy] = useState<"all" | "introvert" | "extrovert" | "muthmainnah" | "lawwamah" | "ammarah">("all")
-  const [sortBy, setSortBy] = useState<"highest" | "lowest" | "alphabetical">("highest")
+  const [filterBy, setFilterBy] = useState<
+    "all" | "introvert" | "extrovert" | "muthmainnah" | "lawwamah" | "ammarah"
+  >("all")
+  const [sortBy, setSortBy] = useState<"highest" | "lowest" | "alphabetical">(
+    "highest"
+  )
   const [showResetModal, setShowResetModal] = useState(false)
 
   // Refs for auto-scroll logic
@@ -70,47 +81,67 @@ function ResultPage() {
       try {
         const urlParams = new URLSearchParams(window.location.search)
         const shareData = urlParams.get("share")
-        
+
         if (shareData) {
           setIsCalculating(true)
           try {
-            const decompressed = LZString.decompressFromEncodedURIComponent(shareData)
+            const decompressed =
+              LZString.decompressFromEncodedURIComponent(shareData)
             if (decompressed) {
               const payload = JSON.parse(decompressed)
               setUmum(payload.u)
-              
-              const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4040"
+
+              const apiUrl =
+                import.meta.env.VITE_API_URL || "http://localhost:4040"
               const type = payload.t || "tb40"
-              const response = await fetch(`${apiUrl}/api/v0.1/${type}/calculation`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ parts: { umum: payload.u, [type]: payload.a } }),
-              })
-              
-              if (!response.ok) throw new Error("Failed to calculate shared result")
-              
+              const response = await fetch(
+                `${apiUrl}/api/v0.1/${type}/calculation`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    parts: { umum: payload.u, [type]: payload.a },
+                  }),
+                }
+              )
+
+              if (!response.ok)
+                throw new Error("Failed to calculate shared result")
+
               const resultData = await response.json()
               const parsedResult = resultData
-              
-              const tb40Data = parsedResult.parts?.tb40 || parsedResult.parts?.tb40anak || parsedResult
+
+              const tb40Data =
+                parsedResult.parts?.tb40 ||
+                parsedResult.parts?.tb40anak ||
+                parsedResult
               setTb40Result(tb40Data.tb40Result || tb40Data.result)
               setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
-              setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+              setTb40Presentation(
+                tb40Data.tb40Presentation || tb40Data.presentation
+              )
               setIsV2(false)
-              
+
               localStorage.setItem("tb40_umum", JSON.stringify(payload.u))
               if (typeof window !== "undefined") {
                 try {
-                  posthog.capture("result_viewed", { shared: true, test_mode: "adaptive" })
+                  posthog.capture("result_viewed", {
+                    shared: true,
+                    test_mode: "adaptive",
+                  })
                 } catch (err) {
                   console.warn("PostHog tracking failed", err)
                 }
               }
               localStorage.setItem("tb40_result", JSON.stringify(resultData))
               setIsCalculating(false)
-              
+
               // Remove ?share from URL without refreshing
-              window.history.replaceState({}, document.title, window.location.pathname)
+              window.history.replaceState(
+                {},
+                document.title,
+                window.location.pathname
+              )
               return
             }
           } catch (err) {
@@ -121,7 +152,7 @@ function ResultPage() {
 
         const savedUmum = localStorage.getItem("tb40_umum")
         const savedResult = localStorage.getItem("tb40_result")
-        
+
         if (!savedUmum || !savedResult) {
           navigate({ to: "/" as any })
           return
@@ -129,10 +160,15 @@ function ResultPage() {
 
         const parsedUmum = JSON.parse(savedUmum)
         const parsedResult = JSON.parse(savedResult)
-        
+
         setUmum(parsedUmum)
 
-        if (parsedResult.version === "v0.2" && parsedResult.status === "complete" && parsedResult.result && !parsedResult.parts) {
+        if (
+          parsedResult.version === "v0.2" &&
+          parsedResult.status === "complete" &&
+          parsedResult.result &&
+          !parsedResult.parts
+        ) {
           setIsV2(true)
           setV2Result(parsedResult.result)
         } else {
@@ -140,14 +176,17 @@ function ResultPage() {
           const tb40Data = parsedResult.parts?.tb40 || parsedResult
           setTb40Result(tb40Data.tb40Result || tb40Data.result)
           setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
-          setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+          setTb40Presentation(
+            tb40Data.tb40Presentation || tb40Data.presentation
+          )
         }
 
         if (typeof window !== "undefined") {
           try {
             posthog.capture("result_viewed", {
               shared: false,
-              test_mode: parsedResult.version === "v0.2" ? "adaptive" : "precision"
+              test_mode:
+                parsedResult.version === "v0.2" ? "adaptive" : "precision",
             })
           } catch (err) {
             console.warn("PostHog tracking failed", err)
@@ -158,7 +197,7 @@ function ResultPage() {
         navigate({ to: "/" as any })
       }
     }
-    
+
     handleInitialLoad()
   }, [navigate])
 
@@ -190,9 +229,11 @@ function ResultPage() {
 
   if (isCalculating) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
-        <Sparkles className="w-8 h-8 text-primary animate-spin" />
-        <p className="text-muted-foreground font-medium animate-pulse">Menghitung Hasil Penilaian Anda...</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
+        <Sparkles className="h-8 w-8 animate-spin text-primary" />
+        <p className="animate-pulse font-medium text-muted-foreground">
+          Menghitung Hasil Penilaian Anda...
+        </p>
       </div>
     )
   }
@@ -210,30 +251,40 @@ function ResultPage() {
     }
     try {
       const savedUmum = localStorage.getItem("tb40_umum")
-      const savedAnswers = localStorage.getItem("tb40_answers") || localStorage.getItem("tb40_answers_v2_tier3")
-      
+      const savedAnswers =
+        localStorage.getItem("tb40_answers") ||
+        localStorage.getItem("tb40_answers_v2_tier3")
+
       if (!savedUmum || !savedAnswers) return
-      
+
       let parsedAnswers = JSON.parse(savedAnswers)
       if (!Array.isArray(parsedAnswers)) {
         // Ensure it's an array for the API
-        parsedAnswers = Array.from({length: 40}).map((_, i) => parsedAnswers[i] || parsedAnswers[`q${i}`] || parsedAnswers[(i+1).toString()] || 60)
+        parsedAnswers = Array.from({ length: 40 }).map(
+          (_, i) =>
+            parsedAnswers[i] ||
+            parsedAnswers[`q${i}`] ||
+            parsedAnswers[(i + 1).toString()] ||
+            60
+        )
       }
-      
+
       const parsedUmum = JSON.parse(savedUmum)
-      
+
       const compactPayload = {
         u: parsedUmum,
         a: parsedAnswers,
-        t: "tb40" 
+        t: "tb40",
       }
-      
-      const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(compactPayload))
+
+      const compressed = LZString.compressToEncodedURIComponent(
+        JSON.stringify(compactPayload)
+      )
       const url = `${window.location.origin}/result?share=${compressed}`
-      
+
       setShareUrl(url)
       setShowShareModal(true)
-    } catch(e) {
+    } catch (e) {
       console.error("Share error", e)
     }
   }
@@ -242,6 +293,11 @@ function ResultPage() {
     navigator.clipboard.writeText(shareUrl)
     setIsCopied(true)
     setTimeout(() => setIsCopied(false), 2000)
+    try {
+      posthog.capture("share_link_copied")
+    } catch (err) {
+      console.warn("PostHog tracking failed", err)
+    }
   }
 
   // Confirmation for Reset
@@ -258,10 +314,15 @@ function ResultPage() {
     const answersV2 = savedAnswersV2 ? JSON.parse(savedAnswersV2) : null
 
     const handleUpgradeToPrecision = () => {
+      try {
+        posthog.capture("upgrade_to_precision_clicked")
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
       const updatedUmum = {
         ...umum,
         testMode: "precision",
-        requestPrecision: true
+        requestPrecision: true,
       }
       localStorage.setItem("tb40_umum", JSON.stringify(updatedUmum))
       navigate({ to: "/test" as any })
@@ -269,128 +330,167 @@ function ResultPage() {
 
     return (
       <>
-        <div className="min-h-screen bg-background text-foreground flex flex-col relative print:bg-white print:text-black">
-          <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-primary/5 to-transparent -z-10 pointer-events-none" />
-          
-          <div className="max-w-4xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
-            
+        <div className="relative flex min-h-screen flex-col bg-background text-foreground print:bg-white print:text-black">
+          <div className="pointer-events-none absolute top-0 left-0 -z-10 h-[600px] w-full bg-gradient-to-b from-primary/5 to-transparent" />
+
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-8 md:px-8">
             {/* Header Controls */}
             <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
               <button
                 onClick={() => navigate({ to: "/test" as any })}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                <Undo2 className="w-3.5 h-3.5" /> Kembali Ke Penilaian
+                <Undo2 className="h-3.5 w-3.5" /> Kembali Ke Penilaian
               </button>
-              
+
               <button
                 onClick={() => setShowResetModal(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Hapus & Ulangi Tes
+                <RotateCcw className="h-3.5 w-3.5" /> Hapus & Ulangi Tes
               </button>
             </div>
 
             {/* Profile Intro */}
-            <div className="flex flex-col gap-4 mt-2">
-              <div className="inline-flex items-center self-start gap-1.5 bg-primary/10 px-3 py-1 rounded-full text-xs font-semibold text-primary">
-                <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Hasil Penilaian Cepat (v0.2)
+            <div className="mt-2 flex flex-col gap-4">
+              <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Hasil
+                Penilaian Cepat (v0.2)
               </div>
-              <h1 className="font-heading text-4xl md:text-5xl font-bold tracking-tight text-foreground">
-                Tafsir Bakat <span className="text-primary italic">{umum.nama.panggilan}</span>
+              <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground md:text-5xl">
+                Tafsir Bakat{" "}
+                <span className="text-primary italic">
+                  {umum.nama.panggilan}
+                </span>
               </h1>
-              <p className="text-muted-foreground text-sm font-mono">
-                Subjek: <span className="font-semibold text-foreground">{umum.nama.lengkap}</span> &bull; 
-                Usia: <span className="font-semibold text-foreground">{umum.usia} Tahun</span> &bull; 
-                Tanggal: <span className="font-semibold text-foreground">{umum.tanggal}</span>
+              <p className="font-mono text-sm text-muted-foreground">
+                Subjek:{" "}
+                <span className="font-semibold text-foreground">
+                  {umum.nama.lengkap}
+                </span>{" "}
+                &bull; Usia:{" "}
+                <span className="font-semibold text-foreground">
+                  {umum.usia} Tahun
+                </span>{" "}
+                &bull; Tanggal:{" "}
+                <span className="font-semibold text-foreground">
+                  {umum.tanggal}
+                </span>
               </p>
             </div>
 
             {/* Primary Group Banner */}
-            <div className="bg-card border border-border rounded-2xl p-6 md:p-8 shadow-sm border-l-4 border-l-primary relative overflow-hidden flex flex-col gap-2">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10" />
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-bold">Klaster Kepribadian Utama</span>
-              <h2 className="font-heading font-semibold text-2xl md:text-3xl text-primary mt-1">
+            <div className="relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-l-4 border-border border-l-primary bg-card p-6 shadow-sm md:p-8">
+              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
+              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                Klaster Kepribadian Utama
+              </span>
+              <h2 className="mt-1 font-heading text-2xl font-semibold text-primary md:text-3xl">
                 {v2Result.primary_group}
               </h2>
-              <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{v2Result.description}</p>
+              <p className="mt-1 text-sm leading-relaxed text-foreground/90">
+                {v2Result.description}
+              </p>
             </div>
 
             {/* Traits Details */}
             <div className="flex flex-col gap-4">
-              <h3 className="font-heading font-semibold text-xl flex items-center gap-2 border-b border-border pb-3">
-                <BookOpen className="w-5 h-5 text-primary" /> Rincian Sifat yang Dievaluasi
+              <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-xl font-semibold">
+                <BookOpen className="h-5 w-5 text-primary" /> Rincian Sifat yang
+                Dievaluasi
               </h3>
-              
+
               <div className="flex flex-col gap-4">
                 {v2Result.traits.map((p: any) => {
-                  const localScore = answersV2?.tier_3?.[`q${p.questionIndex}`] ?? answersV2?.tier_3?.[p.pillar?.no || p.questionIndex]
+                  const localScore =
+                    answersV2?.tier_3?.[`q${p.questionIndex}`] ??
+                    answersV2?.tier_3?.[p.pillar?.no || p.questionIndex]
                   const score = Number(p.score ?? localScore ?? 60)
-                  let ratingBg = "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                  let ratingBg =
+                    "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
                   let ratingBorder = "border-amber-200 dark:border-amber-950/20"
                   if (score >= 80) {
-                    ratingBg = "bg-teal-50 text-teal-800 border-teal-200 dark:bg-teal-950/20 dark:text-teal-400 font-semibold"
-                    ratingBorder = "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
+                    ratingBg =
+                      "bg-teal-50 text-teal-800 border-teal-200 dark:bg-teal-950/20 dark:text-teal-400 font-semibold"
+                    ratingBorder =
+                      "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
                   } else if (score >= 60) {
-                    ratingBg = "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
-                    ratingBorder = "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
+                    ratingBg =
+                      "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
+                    ratingBorder =
+                      "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
                   } else if (score <= 40) {
-                    ratingBg = "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                    ratingBorder = "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
+                    ratingBg =
+                      "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                    ratingBorder =
+                      "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
                   }
 
                   return (
                     <div
                       key={p.name}
-                      className={`bg-card border rounded-2xl p-5 shadow-xs flex flex-col gap-3 transition-all ${ratingBorder}`}
+                      className={`flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-xs transition-all ${ratingBorder}`}
                     >
                       <div className="flex items-center justify-between border-b border-border/70 pb-2">
                         <div className="flex items-baseline gap-2">
-                          <span className="font-mono text-xs font-bold text-primary bg-secondary px-2 py-0.5 rounded border border-border">
+                          <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-primary">
                             Pilar {p.pillar?.no || p.questionIndex}
                           </span>
-                          <h4 className="font-heading font-semibold text-base text-foreground">
+                          <h4 className="font-heading text-base font-semibold text-foreground">
                             {p.data?.nama_lengkap || p.name}
                           </h4>
                         </div>
-                        <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${ratingBg}`}>
+                        <span
+                          className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ratingBg}`}
+                        >
                           Skor: {score}
                         </span>
                       </div>
 
                       {p.data?.arab && (
-                        <div className="text-right -mt-1">
-                          <span className="font-heading font-bold text-xl text-primary/80 font-arabic">
+                        <div className="-mt-1 text-right">
+                          <span className="font-arabic font-heading text-xl font-bold text-primary/80">
                             {p.data.arab}
                           </span>
                         </div>
                       )}
 
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-mono uppercase text-muted-foreground font-semibold">Definisi Pilar</span>
-                        <p className="text-xs text-foreground/90 leading-relaxed">
+                        <span className="font-mono text-[10px] font-semibold text-muted-foreground uppercase">
+                          Definisi Pilar
+                        </span>
+                        <p className="text-xs leading-relaxed text-foreground/90">
                           {p.data?.definisi || "Belum ada definisi terperinci."}
                         </p>
                       </div>
 
-                      {(p.data?.lalai_nama_lengkap || p.data?.lebih_nama_lengkap) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 bg-secondary/40 border border-border/60 p-4 rounded-xl text-xs">
+                      {(p.data?.lalai_nama_lengkap ||
+                        p.data?.lebih_nama_lengkap) && (
+                        <div className="mt-2 grid grid-cols-1 gap-4 rounded-xl border border-border/60 bg-secondary/40 p-4 text-xs sm:grid-cols-2">
                           {p.data?.lalai_nama_lengkap && (
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                              <span className="flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-400">
                                 ⚠️ Potensi Lalai
                               </span>
-                              <h5 className="font-medium text-foreground">{p.data.lalai_nama_lengkap}</h5>
-                              <p className="text-[11px] text-muted-foreground mt-0.5">{p.data.lalai_definisi}</p>
+                              <h5 className="font-medium text-foreground">
+                                {p.data.lalai_nama_lengkap}
+                              </h5>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {p.data.lalai_definisi}
+                              </p>
                             </div>
                           )}
                           {p.data?.lebih_nama_lengkap && (
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                              <span className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
                                 ⚠️ Potensi Berlebihan
                               </span>
-                              <h5 className="font-medium text-foreground">{p.data.lebih_nama_lengkap}</h5>
-                              <p className="text-[11px] text-muted-foreground mt-0.5">{p.data.lebih_definisi}</p>
+                              <h5 className="font-medium text-foreground">
+                                {p.data.lebih_nama_lengkap}
+                              </h5>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {p.data.lebih_definisi}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -402,156 +502,163 @@ function ResultPage() {
             </div>
 
             {/* Upgrade CTA Section */}
-            <div className="bg-card border border-border rounded-2xl p-6 md:p-8 mt-4 text-center flex flex-col items-center gap-4 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10" />
-              <div className="p-3 bg-primary/10 rounded-full border border-primary/20 text-primary">
-                <Sparkles className="w-8 h-8 animate-pulse" />
+            <div className="relative mt-4 flex flex-col items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 text-center md:p-8">
+              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
+              <div className="rounded-full border border-primary/20 bg-primary/10 p-3 text-primary">
+                <Sparkles className="h-8 w-8 animate-pulse" />
               </div>
               <div className="flex flex-col gap-1">
-                <h3 className="font-heading font-semibold text-lg text-foreground">Buka 2 Peta Visual & Laporan Lengkap 40 Pilar</h3>
-                <p className="text-xs text-muted-foreground max-w-lg leading-relaxed">
-                  Penilaian cepat adaptif (v0.2) Anda hanya menguji 3 pilar spesifik. Dapatkan analisis visual premium yang memetakan kepribadian lengkap Anda ke dalam 40 Pilar Mulia dengan melengkapi 37 pertanyaan sisa.
+                <h3 className="font-heading text-lg font-semibold text-foreground">
+                  Buka 2 Peta Visual & Laporan Lengkap 40 Pilar
+                </h3>
+                <p className="max-w-lg text-xs leading-relaxed text-muted-foreground">
+                  Penilaian cepat adaptif (v0.2) Anda hanya menguji 3 pilar
+                  spesifik. Dapatkan analisis visual premium yang memetakan
+                  kepribadian lengkap Anda ke dalam 40 Pilar Mulia dengan
+                  melengkapi 37 pertanyaan sisa.
                 </p>
               </div>
               <Button
                 onClick={handleUpgradeToPrecision}
-                className="mt-2 bg-primary hover:bg-primary/90 flex items-center gap-2 font-heading font-semibold shadow-md shadow-primary/25 px-6 py-5 cursor-pointer"
+                className="mt-2 flex cursor-pointer items-center gap-2 bg-primary px-6 py-5 font-heading font-semibold shadow-md shadow-primary/25 hover:bg-primary/90"
               >
-                Lengkapi Penilaian Presisi (Upgrade) <ArrowRight className="w-4 h-4" />
+                Lengkapi Penilaian Presisi (Upgrade){" "}
+                <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
-
           </div>
         </div>
 
         {/* Share Modal */}
-        {showShareModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
-            <div className="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl flex flex-col gap-6 relative animate-in zoom-in-95 duration-200">
-              <button 
-                onClick={() => setShowShareModal(false)}
-                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              
-              <div className="flex flex-col gap-1.5 text-center items-center">
-                <div className="p-3 bg-primary/10 rounded-full text-primary mb-2">
-                  <Share2 className="w-6 h-6" />
+        <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <div className="flex flex-col items-center gap-1.5 text-center">
+                <div className="mb-2 rounded-full bg-primary/10 p-3 text-primary">
+                  <Share2 className="h-6 w-6" />
                 </div>
-                <h3 className="font-heading font-semibold text-xl text-foreground">
+                <DialogTitle className="font-heading text-xl font-semibold">
                   Bagikan Hasil Penilaian
-                </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Scan QR Code atau salin tautan di bawah untuk membagikan hasil penilaian Anda secara langsung.
-                </p>
+                </DialogTitle>
+                <DialogDescription className="text-xs leading-relaxed">
+                  Scan QR Code atau salin tautan di bawah untuk membagikan hasil
+                  penilaian Anda secara langsung.
+                </DialogDescription>
               </div>
+            </DialogHeader>
 
-              <div className="flex justify-center p-4 bg-white rounded-xl border border-border mx-auto">
-                <QRCodeSVG value={shareUrl} size={180} />
-              </div>
-              
-              <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-mono uppercase font-semibold text-muted-foreground ml-1">Tautan Publik</span>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text" 
-                    readOnly 
-                    value={shareUrl} 
-                    className="flex-1 bg-secondary text-xs rounded-md px-3 py-2.5 border border-border outline-none text-muted-foreground font-mono truncate"
-                  />
-                  <Button onClick={copyToClipboard} size="sm" className="shrink-0 flex items-center gap-1.5 cursor-pointer">
-                    {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    {isCopied ? "Tersalin" : "Salin"}
-                  </Button>
-                </div>
+            <div className="mx-auto flex justify-center rounded-xl border border-border bg-white p-4">
+              <QRCodeSVG value={shareUrl} size={180} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="ml-1 font-mono text-[10px] font-semibold text-muted-foreground uppercase">
+                Tautan Publik
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 truncate rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-xs text-muted-foreground outline-none"
+                />
+                <Button
+                  onClick={copyToClipboard}
+                  size="sm"
+                  className="flex shrink-0 cursor-pointer items-center gap-1.5"
+                >
+                  {isCopied ? (
+                    <Check className="h-4 w-4 text-emerald-400" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {isCopied ? "Tersalin" : "Salin"}
+                </Button>
               </div>
             </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
 
         {/* Reset / Restart Modal */}
-        {showResetModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
-            <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+        <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mt-0.5 animate-bounce">
-                  <AlertTriangle className="w-5 h-5" />
+                <div className="mt-0.5 animate-bounce rounded-lg border border-destructive/20 bg-destructive/10 p-2 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
                 </div>
                 <div className="flex flex-col gap-1.5 text-left">
-                  <h3 className="font-heading font-semibold text-lg text-foreground">
+                  <DialogTitle className="font-heading text-lg font-semibold">
                     Hapus Data & Mulai Ulang?
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Tindakan ini akan **menghapus semua hasil analisis cepat Anda secara permanen** dari perangkat ini.
-                  </p>
+                  </DialogTitle>
+                  <DialogDescription className="text-sm leading-relaxed">
+                    Tindakan ini akan menghapus semua hasil analisis cepat
+                    Anda secara permanen dari perangkat ini.
+                  </DialogDescription>
                 </div>
               </div>
-              
-              <div className="flex items-center justify-end gap-2.5 mt-2 border-t border-border pt-4">
-                <Button
-                  variant="ghost"
-                  type="button"
-                  onClick={() => setShowResetModal(false)}
-                  className="text-xs py-1.5 cursor-pointer shadow-none border-none hover:bg-muted"
-                >
-                  Batal
-                </Button>
-                <Button
-                  variant="destructive"
-                  type="button"
-                  onClick={confirmResetAndRestart}
-                  className="text-xs py-1.5 px-4 cursor-pointer bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold"
-                >
-                  Ya, Hapus & Ulangi
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+            </DialogHeader>
+            <DialogFooter className="mt-2 flex items-center justify-end gap-2.5 border-t border-border pt-4">
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="cursor-pointer border-none py-1.5 text-xs shadow-none hover:bg-muted"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                type="button"
+                onClick={confirmResetAndRestart}
+                className="text-destructive-foreground cursor-pointer bg-destructive px-4 py-1.5 text-xs font-semibold hover:bg-destructive/90"
+              >
+                Ya, Hapus & Ulangi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </>
     )
   }
 
-
-
   const scoreToColor = (score: number): string => {
-    score = Math.max(0, Math.min(100, score));
-    let startColor: number[] = [];
-    let endColor: number[] = [];
-    let interpolationFactor = 0;
-    
+    score = Math.max(0, Math.min(100, score))
+    let startColor: number[] = []
+    let endColor: number[] = []
+    let interpolationFactor = 0
+
     if (score <= 50) {
-      startColor = [191, 64, 64]; // Red (#bf4040)
-      endColor = [64, 191, 64];   // Green (#40bf40)
-      interpolationFactor = score / 50;
+      startColor = [191, 64, 64] // Red (#bf4040)
+      endColor = [64, 191, 64] // Green (#40bf40)
+      interpolationFactor = score / 50
     } else {
-      startColor = [64, 191, 64]; // Green (#40bf40)
-      endColor = [64, 64, 191];   // Blue (#4040bf)
-      interpolationFactor = (score - 50) / 50;
+      startColor = [64, 191, 64] // Green (#40bf40)
+      endColor = [64, 64, 191] // Blue (#4040bf)
+      interpolationFactor = (score - 50) / 50
     }
-    
-    const interpolatedColor = startColor.map((channel, i) => 
+
+    const interpolatedColor = startColor.map((channel, i) =>
       Math.round(channel + (endColor[i] - channel) * interpolationFactor)
-    );
-    
-    return `#${interpolatedColor.map(c => c.toString(16).padStart(2, '0')).join('')}`;
+    )
+
+    return `#${interpolatedColor.map((c) => c.toString(16).padStart(2, "0")).join("")}`
   }
 
   const rankToColor = (rank: number, lowestRank: number): string => {
-    rank = Math.max(1, Math.min(rank, lowestRank));
-    const score = ((lowestRank - rank) / (lowestRank - 1)) * 100;
-    return scoreToColor(score);
+    rank = Math.max(1, Math.min(rank, lowestRank))
+    const score = ((lowestRank - rank) / (lowestRank - 1)) * 100
+    return scoreToColor(score)
   }
 
   // Parse inline SVGs and clean up style tags for Tailwind isolation
   const getCleanSVG = (svgContent: string, mapType: "score" | "rank") => {
     if (!svgContent) return ""
-    
+
     try {
       const parser = new DOMParser()
       const doc = parser.parseFromString(svgContent, "image/svg+xml")
-      
+
       const elements = doc.querySelectorAll("rect, path")
       elements.forEach((el) => {
         const id = el.getAttribute("id")
@@ -565,19 +672,22 @@ function ResultPage() {
               if (mapType === "score") {
                 finalColor = scoreToColor(Number(pillar.score))
               } else {
-                finalColor = rankToColor(Number(pillar.rank), groupResult.length)
+                finalColor = rankToColor(
+                  Number(pillar.rank),
+                  groupResult.length
+                )
               }
-              
+
               if (group === "2") {
                 finalColor += "aa" // Mapped alpha transparency
               }
-              
+
               el.setAttribute("fill", finalColor)
             }
           }
         }
       })
-      
+
       // Make all IDs in this SVG unique to prevent page-level ID collisions
       const allWithId = doc.querySelectorAll("[id]")
       allWithId.forEach((el) => {
@@ -586,10 +696,10 @@ function ResultPage() {
           el.setAttribute("id", `${originalId}-${mapType}`)
         }
       })
-      
+
       const serializer = new XMLSerializer()
       const cleanSvgStr = serializer.serializeToString(doc)
-      
+
       return cleanSvgStr
         .replace("<svg", '<svg class="tb40-interactive-svg w-full h-auto" ')
         .replace(/font-family="[^"]*"/g, 'font-family="inherit"')
@@ -625,16 +735,18 @@ function ResultPage() {
     try {
       const parent18No = pillar.parents?.[0]?.no
       if (!parent18No) return ""
-      
-      const el18 = tb40Result["18"]?.find((p: any) => p.pillar.no === parent18No)
+
+      const el18 = tb40Result["18"]?.find(
+        (p: any) => p.pillar.no === parent18No
+      )
       if (!el18) return ""
-      
+
       const parent6No = el18.parents?.[0]?.no
       if (!parent6No) return ""
-      
+
       const el6 = tb40Result["6"]?.find((p: any) => p.pillar.no === parent6No)
       if (!el6) return ""
-      
+
       return el6.parents?.find((parent: any) => parent.group === "3")?.no || ""
     } catch (e) {
       return ""
@@ -646,17 +758,21 @@ function ResultPage() {
     try {
       const parent18No = pillar.parents?.[0]?.no
       if (!parent18No) return false
-      
-      const el18 = tb40Result["18"]?.find((p: any) => p.pillar.no === parent18No)
+
+      const el18 = tb40Result["18"]?.find(
+        (p: any) => p.pillar.no === parent18No
+      )
       if (!el18) return false
-      
+
       const parent6No = el18.parents?.[0]?.no
       if (!parent6No) return false
-      
+
       const el6 = tb40Result["6"]?.find((p: any) => p.pillar.no === parent6No)
       if (!el6) return false
-      
-      const parent2No = el6.parents?.find((parent: any) => parent.group === "2")?.no
+
+      const parent2No = el6.parents?.find(
+        (parent: any) => parent.group === "2"
+      )?.no
       return parent2No === "1" // 1 is Introvert, 2 is Extrovert
     } catch (e) {
       return false
@@ -668,31 +784,38 @@ function ResultPage() {
   const filteredPillars = all40Pillars
     .filter((p: any) => {
       // 1. Search term match
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.data?.nama && p.data.nama.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.data?.definisi && p.data.definisi.toLowerCase().includes(searchTerm.toLowerCase()))
-      
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.data?.nama &&
+          p.data.nama.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.data?.definisi &&
+          p.data.definisi.toLowerCase().includes(searchTerm.toLowerCase()))
+
       if (!matchesSearch) return false
-      
+
       // 2. Filter match
       const rootNo = getPillarRoot(p)
-      
+
       if (filterBy === "introvert") return isIntrovert(p)
       if (filterBy === "extrovert") return !isIntrovert(p)
-      
+
       // Lineage mapping: 1: Karsa (Ammarah), 2: Cipta/Akal (Lawwamah), 3: Rasa (Muthmainnah)
       if (filterBy === "ammarah") return rootNo === "1"
       if (filterBy === "lawwamah") return rootNo === "2"
       if (filterBy === "muthmainnah") return rootNo === "3"
-      
+
       return true
     })
     .sort((a: any, b: any) => {
       if (sortBy === "highest") {
-        return Number(b.score) - Number(a.score) || Number(a.rank) - Number(b.rank)
+        return (
+          Number(b.score) - Number(a.score) || Number(a.rank) - Number(b.rank)
+        )
       }
       if (sortBy === "lowest") {
-        return Number(a.score) - Number(b.score) || Number(b.rank) - Number(a.rank)
+        return (
+          Number(a.score) - Number(b.score) || Number(b.rank) - Number(a.rank)
+        )
       }
       if (sortBy === "alphabetical") {
         const nameA = a.data?.nama_lengkap || a.name
@@ -706,933 +829,1581 @@ function ResultPage() {
   const getVal = (no: string) => {
     const item = strengthsList.find((s: any) => s.pillar?.no === no)
     if (!item) return 0
-    return chart2Mode === "score" ? Number(item.score ?? 0) : 7 - Number(item.rank ?? 0)
+    return chart2Mode === "score"
+      ? Number(item.score ?? 0)
+      : 7 - Number(item.rank ?? 0)
   }
 
   return (
     <>
-      <div className="min-h-screen bg-background text-foreground flex flex-col relative print:bg-white print:text-black">
-      
-      {/* Dynamic Background Styling */}
-      <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-primary/5 to-transparent -z-10 pointer-events-none print:hidden" />
-      
-      {/* FLOATING OUTLINE NAVIGATION DOCK */}
-      <div className="fixed left-6 top-1/2 -translate-y-1/2 hidden xl:flex flex-col gap-4 z-40 bg-card/65 backdrop-blur-md border border-border p-4 rounded-2xl shadow-lg shadow-stone-200/40 select-none print:hidden">
-        <h5 className="text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase pb-1 border-b border-border/80">LAPORAN</h5>
-        
-        <button
-          onClick={() => scrollTo(ringkasanRef)}
-          className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
-            activeSection === "ringkasan" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${activeSection === "ringkasan" ? "bg-primary" : "bg-transparent"}`} />
-          Ringkasan Profil
-        </button>
+      <div className="relative flex min-h-screen flex-col bg-background text-foreground print:bg-white print:text-black">
+        {/* Dynamic Background Styling */}
+        <div className="pointer-events-none absolute top-0 left-0 -z-10 h-[600px] w-full bg-gradient-to-b from-primary/5 to-transparent print:hidden" />
 
-        <button
-          onClick={() => scrollTo(pemetaanRef)}
-          className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
-            activeSection === "pemetaan" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${activeSection === "pemetaan" ? "bg-primary" : "bg-transparent"}`} />
-          Pemetaan Bakat (SVG)
-        </button>
+        {/* FLOATING OUTLINE NAVIGATION DOCK */}
+        <div className="fixed top-1/2 left-6 z-40 hidden -translate-y-1/2 flex-col gap-4 rounded-2xl border border-border bg-card/65 p-4 shadow-lg shadow-stone-200/40 backdrop-blur-md select-none xl:flex print:hidden">
+          <h5 className="border-b border-border/80 pb-1 font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            LAPORAN
+          </h5>
 
-        <button
-          onClick={() => scrollTo(chartsRef)}
-          className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
-            activeSection === "charts" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${activeSection === "charts" ? "bg-primary" : "bg-transparent"}`} />
-          Grafik Data
-        </button>
+          <button
+            onClick={() => scrollTo(ringkasanRef)}
+            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
+              activeSection === "ringkasan"
+                ? "translate-x-1 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${activeSection === "ringkasan" ? "bg-primary" : "bg-transparent"}`}
+            />
+            Ringkasan Profil
+          </button>
 
-        <button
-          onClick={() => scrollTo(gayaRef)}
-          className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
-            activeSection === "gaya" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${activeSection === "gaya" ? "bg-primary" : "bg-transparent"}`} />
-          Belajar & Komunikasi
-        </button>
+          <button
+            onClick={() => scrollTo(pemetaanRef)}
+            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
+              activeSection === "pemetaan"
+                ? "translate-x-1 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${activeSection === "pemetaan" ? "bg-primary" : "bg-transparent"}`}
+            />
+            Pemetaan Bakat (SVG)
+          </button>
 
-        <button
-          onClick={() => scrollTo(rincianRef)}
-          className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
-            activeSection === "rincian" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${activeSection === "rincian" ? "bg-primary" : "bg-transparent"}`} />
-          Rincian 40 Pilar Sifat
-        </button>
-        
-        <hr className="border-border/80 my-1" />
-        
-        <div className="flex flex-col gap-2">
-          <Button onClick={handlePrint} variant="outline" size="sm" className="flex items-center gap-1.5 text-xs py-1.5 cursor-pointer">
-            <Printer className="w-3.5 h-3.5" /> Cetak PDF
-          </Button>
-          <Button onClick={handleShare} variant="default" size="sm" className="flex items-center gap-1.5 text-xs py-1.5 cursor-pointer shadow-sm">
-            <Share2 className="w-3.5 h-3.5" /> Bagikan Hasil
-          </Button>
-        </div>
-      </div>
+          <button
+            onClick={() => scrollTo(chartsRef)}
+            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
+              activeSection === "charts"
+                ? "translate-x-1 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${activeSection === "charts" ? "bg-primary" : "bg-transparent"}`}
+            />
+            Grafik Data
+          </button>
 
-      {/* CORE CONTENT LAYOUT */}
-      <div className="max-w-4xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col gap-12 print:px-0 print:py-0">
-        
-        {/* Lapor Header Controls */}
-        <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate({ to: "/test" as any })}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          <button
+            onClick={() => scrollTo(gayaRef)}
+            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
+              activeSection === "gaya"
+                ? "translate-x-1 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${activeSection === "gaya" ? "bg-primary" : "bg-transparent"}`}
+            />
+            Belajar & Komunikasi
+          </button>
+
+          <button
+            onClick={() => scrollTo(rincianRef)}
+            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
+              activeSection === "rincian"
+                ? "translate-x-1 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${activeSection === "rincian" ? "bg-primary" : "bg-transparent"}`}
+            />
+            Rincian 40 Pilar Sifat
+          </button>
+
+          <hr className="my-1 border-border/80" />
+
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={handlePrint}
+              variant="outline"
+              size="sm"
+              className="flex cursor-pointer items-center gap-1.5 py-1.5 text-xs"
             >
-              <Undo2 className="w-3.5 h-3.5" /> Kembali Ke Penilaian
-            </button>
-            <span className="text-border">|</span>
-            <button
-              onClick={() => setShowResetModal(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Ulangi Tes Dari Awal
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded dark:bg-emerald-950/20 dark:text-emerald-400">
-              Perhitungan Selesai
-            </span>
-            <Button onClick={handlePrint} variant="outline" size="sm" className="flex items-center gap-1.5 font-heading cursor-pointer">
-              <Printer className="w-4 h-4" /> Cetak PDF
+              <Printer className="h-3.5 w-3.5" /> Cetak PDF
             </Button>
-            <Button onClick={handleShare} size="sm" className="flex items-center gap-1.5 font-heading cursor-pointer shadow-sm">
-              <Share2 className="w-4 h-4" /> Bagikan
+            <Button
+              onClick={handleShare}
+              variant="default"
+              size="sm"
+              className="flex cursor-pointer items-center gap-1.5 py-1.5 text-xs shadow-sm"
+            >
+              <Share2 className="h-3.5 w-3.5" /> Bagikan Hasil
             </Button>
           </div>
         </div>
 
-        {/* HERO AREA & TYPOGRAPHY HEADER */}
-        <div className="text-center md:text-left flex flex-col gap-4 mt-4">
-          <div className="inline-flex items-center self-center md:self-start gap-1.5 bg-primary/10 px-3 py-1 rounded-full text-xs font-semibold text-primary">
-            <Sparkles className="w-3.5 h-3.5" /> Laporan Analisa Editorial
-          </div>
-          
-          <h1 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-tight">
-            Tafsir Bakat <span className="text-primary italic">{umum.nama.panggilan}</span>
-          </h1>
-          
-          <p className="text-muted-foreground text-sm font-mono">
-            Subjek: <span className="font-semibold text-foreground">{umum.nama.lengkap}</span> &bull; 
-            Usia: <span className="font-semibold text-foreground">{umum.usia ?? (umum.lahir?.tanggal ? "Terhitung" : "-")} Tahun</span> &bull; 
-            Analisa: <span className="font-semibold text-foreground">{umum.tanggal}</span>
-          </p>
-          
-          {/* Main Character Title Quote Box (Julukan) */}
-          <div className="bg-card border border-border rounded-2xl p-6 md:p-8 mt-4 shadow-sm border-l-4 border-l-primary relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -z-10" />
-            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground font-semibold">Gelar Kepribadian Anda</span>
-            <h2 className="font-heading font-semibold text-2xl md:text-3xl text-foreground mt-2 leading-relaxed">
-              "{tb40Presentation.julukan.data}"
-            </h2>
-          </div>
-        </div>
-
-        {/* SECTION 1: DETAILED PERSONALITY REPORT */}
-        <div ref={ringkasanRef} className="scroll-mt-12 flex flex-col gap-6">
-          <h3 className="font-heading font-semibold text-2xl flex items-center gap-2 border-b border-border pb-3">
-            <FileText className="w-5 h-5 text-primary" /> Ringkasan Karakter & Jiwa
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 flex flex-col gap-4 text-justify leading-relaxed text-foreground/90 text-sm md:text-base">
-              {tb40Presentation.kepribadian.data.split("\n\n").map((para: string, idx: number) => (
-                <p key={idx} className="first-letter:text-3xl first-letter:font-heading first-letter:font-bold first-letter:text-primary first-letter:float-left first-letter:mr-2 leading-[1.7]">
-                  {para}
-                </p>
-              ))}
+        {/* CORE CONTENT LAYOUT */}
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 px-4 py-8 md:px-8 print:px-0 print:py-0">
+          {/* Lapor Header Controls */}
+          <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate({ to: "/test" as any })}
+                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Undo2 className="h-3.5 w-3.5" /> Kembali Ke Penilaian
+              </button>
+              <span className="text-border">|</span>
+              <button
+                onClick={() => setShowResetModal(true)}
+                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Ulangi Tes Dari Awal
+              </button>
             </div>
-            
-            {/* Overview Highlights Cards */}
-            <div className="flex flex-col gap-4">
-              <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-                <h4 className="font-heading font-medium text-sm flex items-center gap-1.5 text-primary border-b border-border pb-2">
-                  <Brain className="w-4 h-4" /> Kategori Mental (2 Pilar)
-                </h4>
-                <div className="flex flex-col gap-3 mt-3">
-                  {tb40ResultRanked["2"]?.slice(0, 2).map((p: any) => (
-                    <div key={p.name} className="flex justify-between items-center text-xs">
-                      <span className="font-medium text-foreground">{p.name}</span>
-                      <span className="font-mono bg-secondary px-2 py-0.5 rounded font-semibold border border-border">{p.score}% ({p.rank === 1 ? "Dominan" : "Kondisional"})</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
-              <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-                <h4 className="font-heading font-medium text-sm flex items-center gap-1.5 text-primary border-b border-border pb-2">
-                  <TrendingUp className="w-4 h-4" /> 3 Kekuatan Utama (6 Pilar)
-                </h4>
-                <div className="flex flex-col gap-3 mt-3">
-                  {tb40ResultRanked["6"]?.slice(0, 3).map((p: any) => (
-                    <div key={p.name} className="flex justify-between items-center text-xs">
-                      <span className="font-medium text-foreground">{p.data?.label || p.name}</span>
-                      <span className="font-mono bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded font-bold dark:bg-emerald-950/20 dark:text-emerald-400">{p.score}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400">
+                Perhitungan Selesai
+              </span>
+              <Button
+                onClick={handlePrint}
+                variant="outline"
+                size="sm"
+                className="flex cursor-pointer items-center gap-1.5 font-heading"
+              >
+                <Printer className="h-4 w-4" /> Cetak PDF
+              </Button>
+              <Button
+                onClick={handleShare}
+                size="sm"
+                className="flex cursor-pointer items-center gap-1.5 font-heading shadow-sm"
+              >
+                <Share2 className="h-4 w-4" /> Bagikan
+              </Button>
             </div>
           </div>
-        </div>
 
-        {/* SECTION 2: INTERACTIVE SVG MAPS */}
-        <div ref={pemetaanRef} className="scroll-mt-12 flex flex-col gap-6 print:break-before-page">
-          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-3 gap-4">
-            <h3 className="font-heading font-semibold text-2xl flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" /> Visualisasi Pemetaan Tafsir Bakat
+          {/* HERO AREA & TYPOGRAPHY HEADER */}
+          <div className="mt-4 flex flex-col gap-4 text-center md:text-left">
+            <div className="inline-flex items-center gap-1.5 self-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary md:self-start">
+              <Sparkles className="h-3.5 w-3.5" /> Laporan Analisa Editorial
+            </div>
+
+            <h1 className="font-heading text-4xl leading-tight font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
+              Tafsir Bakat{" "}
+              <span className="text-primary italic">{umum.nama.panggilan}</span>
+            </h1>
+
+            <p className="font-mono text-sm text-muted-foreground">
+              Subjek:{" "}
+              <span className="font-semibold text-foreground">
+                {umum.nama.lengkap}
+              </span>{" "}
+              &bull; Usia:{" "}
+              <span className="font-semibold text-foreground">
+                {umum.usia ?? (umum.lahir?.tanggal ? "Terhitung" : "-")} Tahun
+              </span>{" "}
+              &bull; Analisa:{" "}
+              <span className="font-semibold text-foreground">
+                {umum.tanggal}
+              </span>
+            </p>
+
+            {/* Main Character Title Quote Box (Julukan) */}
+            <div className="relative mt-4 overflow-hidden rounded-2xl border border-l-4 border-border border-l-primary bg-card p-6 shadow-sm md:p-8">
+              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
+              <span className="font-mono text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+                Gelar Kepribadian Anda
+              </span>
+              <h2 className="mt-2 font-heading text-2xl leading-relaxed font-semibold text-foreground md:text-3xl">
+                "{tb40Presentation.julukan.data}"
+              </h2>
+            </div>
+          </div>
+
+          {/* SECTION 1: DETAILED PERSONALITY REPORT */}
+          <div ref={ringkasanRef} className="flex scroll-mt-12 flex-col gap-6">
+            <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-2xl font-semibold">
+              <FileText className="h-5 w-5 text-primary" /> Ringkasan Karakter &
+              Jiwa
             </h3>
-            
-            {/* Elegant Tab Selector */}
-            <div className="flex bg-secondary/80 border border-border p-1 rounded-full self-start md:self-auto print:hidden shadow-inner">
-              <button
-                type="button"
-                onClick={() => setMapTab("score")}
-                className={`px-4 py-1.5 rounded-full text-xs font-heading font-medium transition-all cursor-pointer ${
-                  mapTab === "score" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Skor Saja
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapTab("rank")}
-                className={`px-4 py-1.5 rounded-full text-xs font-heading font-medium transition-all cursor-pointer ${
-                  mapTab === "rank" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Rangka Saja
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapTab("both")}
-                className={`px-4 py-1.5 rounded-full text-xs font-heading font-medium transition-all cursor-pointer ${
-                  mapTab === "both" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Kedua Peta
-              </button>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="flex flex-col gap-4 text-justify text-sm leading-relaxed text-foreground/90 md:col-span-2 md:text-base">
+                {tb40Presentation.kepribadian.data
+                  .split("\n\n")
+                  .map((para: string, idx: number) => (
+                    <p
+                      key={idx}
+                      className="leading-[1.7] first-letter:float-left first-letter:mr-2 first-letter:font-heading first-letter:text-3xl first-letter:font-bold first-letter:text-primary"
+                    >
+                      {para}
+                    </p>
+                  ))}
+              </div>
+
+              {/* Overview Highlights Cards */}
+              <div className="flex flex-col gap-4">
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h4 className="flex items-center gap-1.5 border-b border-border pb-2 font-heading text-sm font-medium text-primary">
+                    <Brain className="h-4 w-4" /> Kategori Mental (2 Pilar)
+                  </h4>
+                  <div className="mt-3 flex flex-col gap-3">
+                    {tb40ResultRanked["2"]?.slice(0, 2).map((p: any) => (
+                      <div
+                        key={p.name}
+                        className="flex items-center justify-between text-xs"
+                      >
+                        <span className="font-medium text-foreground">
+                          {p.name}
+                        </span>
+                        <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono font-semibold">
+                          {p.score}% ({p.rank === 1 ? "Dominan" : "Kondisional"}
+                          )
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h4 className="flex items-center gap-1.5 border-b border-border pb-2 font-heading text-sm font-medium text-primary">
+                    <TrendingUp className="h-4 w-4" /> 3 Kekuatan Utama (6
+                    Pilar)
+                  </h4>
+                  <div className="mt-3 flex flex-col gap-3">
+                    {tb40ResultRanked["6"]?.slice(0, 3).map((p: any) => (
+                      <div
+                        key={p.name}
+                        className="flex items-center justify-between text-xs"
+                      >
+                        <span className="font-medium text-foreground">
+                          {p.data?.label || p.name}
+                        </span>
+                        <span className="rounded border border-emerald-100 bg-emerald-50 px-2 py-0.5 font-mono font-bold text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400">
+                          {p.score}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <p className="text-sm text-muted-foreground leading-relaxed -mt-2">
-            Grafik di bawah ini memetakan kepribadian Anda dalam klaster-klaster khusus. Arahkan kursor / sentuh bagian-bagian grafik untuk melihat representasi visual bakat secara mendalam.
-          </p>
 
-          {/* Conditional Layouts based on mapTab */}
-          <div className="mt-2">
-            
-            {/* SCORE ONLY VIEW */}
-            {mapTab === "score" && (
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-md flex flex-col gap-4 relative max-w-2xl mx-auto transition-all duration-300">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <h4 className="font-heading font-semibold text-base">Pemetaan Warna Berdasar Skor</h4>
-                  <span className="text-[10px] font-mono uppercase bg-secondary px-2 py-0.5 rounded font-bold text-muted-foreground">SKOR</span>
-                </div>
-                <div
-                  className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5] p-2"
-                  dangerouslySetInnerHTML={{ __html: getCleanSVG(tb40Presentation.pemetaan_tafsir_bakat.file, "score") }}
-                />
-                <p className="text-[11px] text-muted-foreground leading-normal mt-1 text-center">
-                  *Warna mewakili tingkat penguasaan: Hijau (Unggul), Kuning (Seimbang), Merah (Kelemahan).
-                </p>
+          {/* SECTION 2: INTERACTIVE SVG MAPS */}
+          <div
+            ref={pemetaanRef}
+            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
+          >
+            <div className="flex flex-col justify-between gap-4 border-b border-border pb-3 md:flex-row md:items-center">
+              <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
+                <TrendingUp className="h-5 w-5 text-primary" /> Visualisasi
+                Pemetaan Tafsir Bakat
+              </h3>
+
+              {/* Elegant Tab Selector */}
+              <div className="flex self-start rounded-full border border-border bg-secondary/80 p-1 shadow-inner md:self-auto print:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMapTab("score")}
+                  className={`cursor-pointer rounded-full px-4 py-1.5 font-heading text-xs font-medium transition-all ${
+                    mapTab === "score"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Skor Saja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapTab("rank")}
+                  className={`cursor-pointer rounded-full px-4 py-1.5 font-heading text-xs font-medium transition-all ${
+                    mapTab === "rank"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Rangka Saja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapTab("both")}
+                  className={`cursor-pointer rounded-full px-4 py-1.5 font-heading text-xs font-medium transition-all ${
+                    mapTab === "both"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Kedua Peta
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* RANK ONLY VIEW */}
-            {mapTab === "rank" && (
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-md flex flex-col gap-4 relative max-w-2xl mx-auto transition-all duration-300">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <h4 className="font-heading font-semibold text-base">Pemetaan Berdasar Rangka (Rank)</h4>
-                  <span className="text-[10px] font-mono uppercase bg-secondary px-2 py-0.5 rounded font-bold text-muted-foreground">RANK</span>
-                </div>
-                <div
-                  className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5] p-2"
-                  dangerouslySetInnerHTML={{ __html: getCleanSVG(tb40Presentation.pemetaan_tafsir_bakat_byRank.file, "rank") }}
-                />
-                <p className="text-[11px] text-muted-foreground leading-normal mt-1 text-center">
-                  *Warna mewakili posisi relatif bakat tersebut dibandingkan dengan kekuatan bakat Anda yang lain.
-                </p>
-              </div>
-            )}
+            <p className="-mt-2 text-sm leading-relaxed text-muted-foreground">
+              Grafik di bawah ini memetakan kepribadian Anda dalam
+              klaster-klaster khusus. Arahkan kursor / sentuh bagian-bagian
+              grafik untuk melihat representasi visual bakat secara mendalam.
+            </p>
 
-            {/* BOTH SIDE-BY-SIDE VIEW (Exactly as before) */}
-            {mapTab === "both" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 transition-all duration-300">
-                
-                {/* Dynamic Map 1: Score Map */}
-                <div className="bg-card border border-border rounded-2xl p-5 shadow-md flex flex-col gap-4 relative">
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <h4 className="font-heading font-semibold text-sm">Pemetaan Warna Berdasar Skor</h4>
-                    <span className="text-[10px] font-mono uppercase bg-secondary px-2 py-0.5 rounded font-bold text-muted-foreground">SKOR</span>
+            {/* Conditional Layouts based on mapTab */}
+            <div className="mt-2">
+              {/* SCORE ONLY VIEW */}
+              {mapTab === "score" && (
+                <div className="relative mx-auto flex max-w-2xl flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md transition-all duration-300">
+                  <div className="flex items-center justify-between border-b border-border pb-3">
+                    <h4 className="font-heading text-base font-semibold">
+                      Pemetaan Warna Berdasar Skor
+                    </h4>
+                    <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
+                      SKOR
+                    </span>
                   </div>
                   <div
-                    className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5]"
-                    dangerouslySetInnerHTML={{ __html: getCleanSVG(tb40Presentation.pemetaan_tafsir_bakat.file, "score") }}
+                    className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] p-2 dark:bg-[#FAF8F5]"
+                    dangerouslySetInnerHTML={{
+                      __html: getCleanSVG(
+                        tb40Presentation.pemetaan_tafsir_bakat.file,
+                        "score"
+                      ),
+                    }}
                   />
-                  <p className="text-[10px] text-muted-foreground leading-normal mt-1">
-                    *Warna mewakili tingkat penguasaan: Hijau (Unggul), Kuning (Seimbang), Merah (Kelemahan).
+                  <p className="mt-1 text-center text-[11px] leading-normal text-muted-foreground">
+                    *Warna mewakili tingkat penguasaan: Hijau (Unggul), Kuning
+                    (Seimbang), Merah (Kelemahan).
                   </p>
                 </div>
+              )}
 
-                {/* Dynamic Map 2: Rank Map */}
-                <div className="bg-card border border-border rounded-2xl p-5 shadow-md flex flex-col gap-4 relative">
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <h4 className="font-heading font-semibold text-sm">Pemetaan Berdasar Rangka (Rank)</h4>
-                    <span className="text-[10px] font-mono uppercase bg-secondary px-2 py-0.5 rounded font-bold text-muted-foreground">RANK</span>
+              {/* RANK ONLY VIEW */}
+              {mapTab === "rank" && (
+                <div className="relative mx-auto flex max-w-2xl flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md transition-all duration-300">
+                  <div className="flex items-center justify-between border-b border-border pb-3">
+                    <h4 className="font-heading text-base font-semibold">
+                      Pemetaan Berdasar Rangka (Rank)
+                    </h4>
+                    <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
+                      RANK
+                    </span>
                   </div>
                   <div
-                    className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5]"
-                    dangerouslySetInnerHTML={{ __html: getCleanSVG(tb40Presentation.pemetaan_tafsir_bakat_byRank.file, "rank") }}
+                    className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] p-2 dark:bg-[#FAF8F5]"
+                    dangerouslySetInnerHTML={{
+                      __html: getCleanSVG(
+                        tb40Presentation.pemetaan_tafsir_bakat_byRank.file,
+                        "rank"
+                      ),
+                    }}
                   />
-                  <p className="text-[10px] text-muted-foreground leading-normal mt-1">
-                    *Warna mewakili posisi relatif bakat tersebut dibandingkan dengan kekuatan bakat Anda yang lain.
+                  <p className="mt-1 text-center text-[11px] leading-normal text-muted-foreground">
+                    *Warna mewakili posisi relatif bakat tersebut dibandingkan
+                    dengan kekuatan bakat Anda yang lain.
                   </p>
                 </div>
+              )}
 
-              </div>
-            )}
-
-          </div>
-        </div>
-
-        {/* SECTION 2.5: INTERACTIVE ECHARTS */}
-        <div ref={chartsRef} id="charts" className="scroll-mt-12 flex flex-col gap-6 print:break-before-page">
-          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-3 gap-4">
-            <h3 className="font-heading font-semibold text-2xl flex items-center gap-2">
-              <BarChart2 className="w-5 h-5 text-primary" /> Grafik Data Interaktif
-            </h3>
-          </div>
-          
-          <div className="flex flex-col gap-8">
-
-            {/* Chart 2: 6 Strengths */}
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-md flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h4 className="font-heading font-semibold text-base">6 Kekuatan Utama</h4>
-                <div className="flex bg-secondary/80 border border-border p-0.5 rounded-md shadow-inner">
-                  <button onClick={() => setChart2Mode("score")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart2Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Skor</button>
-                  <button onClick={() => setChart2Mode("rank")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart2Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Rank</button>
-                </div>
-              </div>
-              <div className="w-full">
-                <EBarChart
-                  height={400}
-                  option={{
-                    title: [
-                      { text: "Introvert", left: "20%", textStyle: { fontSize: 13, fontWeight: "bold", fontFamily: "Inter, sans-serif", color: "#4b5563" } },
-                      { text: "Extrovert", right: "20%", textStyle: { fontSize: 13, fontWeight: "bold", fontFamily: "Inter, sans-serif", color: "#4b5563" } }
-                    ],
-                    tooltip: {
-                      trigger: "axis",
-                      axisPointer: { type: "shadow" },
-                      formatter: (params: any) => {
-                        let res = ""
-                        params.forEach((p: any) => {
-                          let no = ""
-                          if (p.seriesName === "Introvert") {
-                            if (p.name === "Rasa") no = "3"
-                            else if (p.name === "Cipta") no = "2"
-                            else if (p.name === "Karsa") no = "1"
-                          } else {
-                            if (p.name === "Rasa") no = "6"
-                            else if (p.name === "Cipta") no = "5"
-                            else if (p.name === "Karsa") no = "4"
-                          }
-                          const item = strengthsList.find((s: any) => s.pillar?.no === no)
-                          if (item) {
-                            res += `<b>${p.seriesName} - ${item.name}</b>: ${Number(item.score).toFixed(1)} (Rank ${item.rank})<br/>`
-                          }
-                        })
-                        return res
-                      }
-                    },
-                    grid: [
-                      { left: "5%", width: "42%", bottom: "5%", top: "18%", containLabel: true },
-                      { right: "5%", width: "42%", bottom: "5%", top: "18%", containLabel: true }
-                    ],
-                    xAxis: [
-                      { gridIndex: 0, type: "value", inverse: true, show: false, max: chart2Mode === "score" ? 100 : 6, min: 0 },
-                      { gridIndex: 1, type: "value", inverse: false, show: false, max: chart2Mode === "score" ? 100 : 6, min: 0 }
-                    ],
-                    yAxis: [
-                      {
-                        gridIndex: 0,
-                        type: "category",
-                        position: "right",
-                        axisLine: { show: false },
-                        axisTick: { show: false },
-                        axisLabel: {
-                          show: true,
-                          fontSize: 12,
-                          fontWeight: "bold",
-                          fontFamily: "Inter, sans-serif",
-                          color: "#6b7280"
-                        },
-                        data: ["Rasa", "Cipta", "Karsa"]
-                      },
-                      {
-                        gridIndex: 1,
-                        type: "category",
-                        position: "left",
-                        axisLine: { show: false },
-                        axisTick: { show: false },
-                        axisLabel: { show: false },
-                        data: ["Rasa", "Cipta", "Karsa"]
-                      }
-                    ],
-                    series: [
-                      {
-                        name: "Introvert",
-                        type: "bar",
-                        xAxisIndex: 0,
-                        yAxisIndex: 0,
-                        barWidth: 22,
-                        markLine: {
-                          silent: true,
-                          symbol: "none",
-                          label: { formatter: "{b}", position: "end", fontSize: 9, fontFamily: "Inter, sans-serif" },
-                          lineStyle: { type: "dashed", width: 1 },
-                          data: chart2Mode === "score"
-                            ? [
-                                { xAxis: 80, name: "Kuat", lineStyle: { color: "#10b981" } },
-                                { xAxis: 60, name: "Cukup", lineStyle: { color: "#f59e0b" } }
-                              ]
-                            : [
-                                { xAxis: 5, name: "Top 2", lineStyle: { color: "#10b981" } },
-                                { xAxis: 3, name: "Top 4", lineStyle: { color: "#f59e0b" } }
-                              ]
-                        },
-                        data: [
-                          {
-                            value: getVal("3"),
-                            itemStyle: {
-                              color: getVal("3") >= 80 
-                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
-                                : getVal("3") >= 60
-                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
-                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
-                            },
-                            label: {
-                              show: true,
-                              position: "left",
-                              formatter: () => {
-                                const item = strengthsList.find((s: any) => s.pillar?.no === "3")
-                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
-                              },
-                              fontFamily: "Inter, sans-serif",
-                              fontSize: 10,
-                              color: "#374151"
-                            }
-                          },
-                          {
-                            value: getVal("2"),
-                            itemStyle: {
-                              color: getVal("2") >= 80
-                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
-                                : getVal("2") >= 60
-                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
-                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
-                            },
-                            label: {
-                              show: true,
-                              position: "left",
-                              formatter: () => {
-                                const item = strengthsList.find((s: any) => s.pillar?.no === "2")
-                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
-                              },
-                              fontFamily: "Inter, sans-serif",
-                              fontSize: 10,
-                              color: "#374151"
-                            }
-                          },
-                          {
-                            value: getVal("1"),
-                            itemStyle: {
-                              color: getVal("1") >= 80
-                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
-                                : getVal("1") >= 60
-                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
-                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
-                            },
-                            label: {
-                              show: true,
-                              position: "left",
-                              formatter: () => {
-                                const item = strengthsList.find((s: any) => s.pillar?.no === "1")
-                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
-                              },
-                              fontFamily: "Inter, sans-serif",
-                              fontSize: 10,
-                              color: "#374151"
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        name: "Extrovert",
-                        type: "bar",
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        barWidth: 22,
-                        markLine: {
-                          silent: true,
-                          symbol: "none",
-                          label: { formatter: "{b}", position: "end", fontSize: 9, fontFamily: "Inter, sans-serif" },
-                          lineStyle: { type: "dashed", width: 1 },
-                          data: chart2Mode === "score"
-                            ? [
-                                { xAxis: 80, name: "Kuat", lineStyle: { color: "#10b981" } },
-                                { xAxis: 60, name: "Cukup", lineStyle: { color: "#f59e0b" } }
-                              ]
-                            : [
-                                { xAxis: 5, name: "Top 2", lineStyle: { color: "#10b981" } },
-                                { xAxis: 3, name: "Top 4", lineStyle: { color: "#f59e0b" } }
-                              ]
-                        },
-                        data: [
-                          {
-                            value: getVal("6"),
-                            itemStyle: {
-                              color: getVal("6") >= 80
-                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#34d399' }] }
-                                : getVal("6") >= 60
-                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#d97706' }, { offset: 1, color: '#fbbf24' }] }
-                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#dc2626' }, { offset: 1, color: '#f87171' }] }
-                            },
-                            label: {
-                              show: true,
-                              position: "right",
-                              formatter: () => {
-                                const item = strengthsList.find((s: any) => s.pillar?.no === "6")
-                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
-                              },
-                              fontFamily: "Inter, sans-serif",
-                              fontSize: 10,
-                              color: "#374151"
-                            }
-                          },
-                          {
-                            value: getVal("5"),
-                            itemStyle: {
-                              color: getVal("5") >= 80
-                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#34d399' }] }
-                                : getVal("5") >= 60
-                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#d97706' }, { offset: 1, color: '#fbbf24' }] }
-                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#dc2626' }, { offset: 1, color: '#f87171' }] }
-                            },
-                            label: {
-                              show: true,
-                              position: "right",
-                              formatter: () => {
-                                const item = strengthsList.find((s: any) => s.pillar?.no === "5")
-                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
-                              },
-                              fontFamily: "Inter, sans-serif",
-                              fontSize: 10,
-                              color: "#374151"
-                            }
-                          },
-                          {
-                            value: getVal("4"),
-                            itemStyle: {
-                              color: getVal("4") >= 80
-                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#34d399' }] }
-                                : getVal("4") >= 60
-                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#d97706' }, { offset: 1, color: '#fbbf24' }] }
-                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#dc2626' }, { offset: 1, color: '#f87171' }] }
-                            },
-                            label: {
-                              show: true,
-                              position: "right",
-                              formatter: () => {
-                                const item = strengthsList.find((s: any) => s.pillar?.no === "4")
-                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
-                              },
-                              fontFamily: "Inter, sans-serif",
-                              fontSize: 10,
-                              color: "#374151"
-                            }
-                          }
-                        ]
-                      }
-                    ]
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Chart 1: 40 Pillars */}
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-md flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h4 className="font-heading font-semibold text-base">40 Pilar Sifat</h4>
-                <div className="flex bg-secondary/80 border border-border p-0.5 rounded-md shadow-inner">
-                  <button onClick={() => setChart1Mode("score")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart1Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Skor</button>
-                  <button onClick={() => setChart1Mode("rank")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart1Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Rank</button>
-                </div>
-              </div>
-              <div className="w-full">
-                <EBarChart
-                  height={500}
-                  option={{
-                    tooltip: {
-                      trigger: "axis",
-                      axisPointer: { type: "shadow" },
-                      formatter: (params: any) => {
-                        const dataIndex = params[0].dataIndex
-                        const sortedData = chart1Mode === "score" 
-                          ? [...(tb40Result["40"] || [])].sort((a, b) => b.score - a.score)
-                          : [...(tb40Result["40"] || [])].sort((a, b) => a.rank - b.rank)
-                        const item = sortedData[dataIndex]
-                        return `<b>${item.name}</b><br/>Score: ${item.score}<br/>Rank: ${item.rank}`
-                      }
-                    },
-                    grid: { left: "1%", right: "1%", bottom: "15%", top: "8%", containLabel: true },
-                    xAxis: {
-                      type: "category",
-                      data: chart1Mode === "score" 
-                        ? [...(tb40Result["40"] || [])].sort((a, b) => b.score - a.score).map((d: any) => d.name)
-                        : [...(tb40Result["40"] || [])].sort((a, b) => a.rank - b.rank).map((d: any) => d.name),
-                      axisLabel: { interval: 0, rotate: 45, fontSize: 9, fontFamily: "Inter, sans-serif" }
-                    },
-                    yAxis: { type: "value", show: false },
-                    series: [
-                      {
-                        type: "bar",
-                        data: chart1Mode === "score"
-                          ? [...(tb40Result["40"] || [])].sort((a, b) => b.score - a.score).map((d: any) => ({
-                              value: d.score,
-                              itemStyle: {
-                                color: d.score >= 80
-                                  ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
-                                  : d.score >= 60
-                                    ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
-                                    : { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
-                              }
-                            }))
-                          : [...(tb40Result["40"] || [])].sort((a, b) => a.rank - b.rank).map((d: any) => ({
-                              value: 41 - d.rank,
-                              itemStyle: {
-                                color: d.rank <= 10
-                                  ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
-                                  : d.rank <= 30
-                                    ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
-                                    : { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
-                              }
-                            })),
-                        markLine: {
-                          silent: true,
-                          symbol: "none",
-                          label: { formatter: "{b}", position: "end", fontSize: 9, fontFamily: "Inter, sans-serif" },
-                          lineStyle: { type: "dashed", width: 1 },
-                          data: chart1Mode === "score"
-                            ? [
-                                { yAxis: 80, name: "Kuat", lineStyle: { color: "#10b981" } },
-                                { yAxis: 60, name: "Cukup", lineStyle: { color: "#f59e0b" } }
-                              ]
-                            : [
-                                { yAxis: 31, name: "Top 10", lineStyle: { color: "#10b981" } },
-                                { yAxis: 11, name: "Top 30", lineStyle: { color: "#f59e0b" } }
-                              ]
-                        }
-                      }
-                    ]
-                  }}
-                />
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* SECTION 3: LEARNING STYLE & HEART LANGUAGE */}
-        <div ref={gayaRef} className="scroll-mt-12 flex flex-col gap-6 print:break-before-page">
-          <h3 className="font-heading font-semibold text-2xl flex items-center gap-2 border-b border-border pb-3">
-            <Brain className="w-5 h-5 text-primary" /> Gaya Belajar & Bahasa Hati
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Learning Style Card */}
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-md relative overflow-hidden flex flex-col gap-4">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2.5 rounded-xl border border-primary/20">
-                  <BookOpen className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-semibold">AKAL & METODOLOGI</span>
-                  <h4 className="font-heading font-semibold text-lg text-foreground">Gaya Belajar Ideal</h4>
-                </div>
-              </div>
-              
-              <div className="text-sm font-heading font-medium bg-secondary/80 border border-border p-3 rounded-lg leading-relaxed text-foreground">
-                "{tb40Presentation.ringkasan_gaya_belajar.data}"
-              </div>
-              
-              {/* Detailed Cognitive description parsed from ranked first pillar */}
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Metode belajar dominan Anda sangat dipengaruhi oleh kekuatan struktur mental utama Anda ({tb40ResultRanked["3"]?.[0]?.name}). Pendekatan ini meningkatkan kecepatan retensi informasi, pemahaman teoritis, dan kenyamanan visual/kinestetik di lingkungan belajar Anda.
-              </p>
-            </div>
-
-            {/* Heart Language Card */}
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-md relative overflow-hidden flex flex-col gap-4">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-destructive/5 rounded-full blur-2xl pointer-events-none" />
-              <div className="flex items-center gap-3">
-                <div className="bg-destructive/10 p-2.5 rounded-xl border border-destructive/20">
-                  <Heart className="w-6 h-6 text-destructive" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-semibold">EMOSIONAL & SOSIAL</span>
-                  <h4 className="font-heading font-semibold text-lg text-foreground">Bahasa Hati & Sentuhan Rasa</h4>
-                </div>
-              </div>
-              
-              <div className="text-sm font-heading font-medium bg-secondary/80 border border-border p-3 rounded-lg leading-relaxed text-foreground">
-                "{tb40Presentation.ringkasan_bahasa_hati.data}"
-              </div>
-              
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Perasaan dan hubungan interaksi sosial Anda beresonansi paling kuat ketika tersentuh melalui cara ini. Memahami bahasa hati ini berguna untuk membangun kemitraan tim yang sehat, memelihara keluarga, dan menjalin silaturahmi yang harmonis.
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* SECTION 4: FULL DETAILED LIST OF 40 NOBLE CHARACTERISTICS */}
-        <div ref={rincianRef} className="scroll-mt-12 flex flex-col gap-6 print:break-before-page">
-          
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-border pb-3 gap-4">
-            <h3 className="font-heading font-semibold text-2xl flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-primary" /> Rincian Sifat 40 Pilar Mulia
-            </h3>
-            
-            {/* Search Input Filter */}
-            <div className="relative max-w-xs w-full print:hidden">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
-              <input
-                type="text"
-                placeholder="Cari pilar sifat..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-card border border-input rounded-full pl-9 pr-4 py-1.5 text-xs w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-muted-foreground/50"
-              />
-            </div>
-          </div>
-
-          <p className="text-sm text-muted-foreground leading-relaxed -mt-2">
-            Di bawah ini adalah rincian lengkap 40 pilar kepribadian mulia Anda. Setiap sifat dilengkapi dengan definisi, sifat tercela yang mungkin timbul bila berlebihan (atau kurang), serta rekomendasi perbaikan karakter. Gunakan filter di bawah ini untuk menjelajahi profil Anda secara mendalam.
-          </p>
-
-          {/* Premium UI Filter and Sort Controls */}
-          <div className="flex flex-col gap-4 bg-card/45 border border-border p-4 rounded-2xl print:hidden shadow-xs">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              
-              {/* Filter Chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-mono font-bold tracking-wider text-muted-foreground uppercase mr-1">Klaster:</span>
-                {[
-                  { value: "all", label: "Semua" },
-                  { value: "introvert", label: "Introvert" },
-                  { value: "extrovert", label: "Ekstrovert" }
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setFilterBy(opt.value as any)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                      filterBy === opt.value
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-                
-                <span className="text-[10px] font-mono font-bold tracking-wider text-muted-foreground uppercase ml-2 mr-1">Nafs (Jiwa):</span>
-                {[
-                  { value: "muthmainnah", label: "Muthmainnah (Rasa)" },
-                  { value: "lawwamah", label: "Lawwamah (Akal)" },
-                  { value: "ammarah", label: "Ammarah (Karsa)" }
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setFilterBy(opt.value as any)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                      filterBy === opt.value
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Sort Selector */}
-              <div className="flex items-center gap-2 self-start lg:self-auto shrink-0">
-                <span className="text-[10px] font-mono font-bold tracking-wider text-muted-foreground uppercase">Urutan:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-card border border-input rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all text-muted-foreground cursor-pointer font-medium"
-                >
-                  <option value="highest">Skor Tertinggi</option>
-                  <option value="lowest">Skor Terendah</option>
-                  <option value="alphabetical">Abjad (Nama A-Z)</option>
-                </select>
-              </div>
-              
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            {filteredPillars.map((p: any) => {
-              const score = p.score
-              const rootNo = getPillarRoot(p)
-              
-              // Determine Nafs Classification based on Root Lineage
-              let nafsLabel = "Nafs Lawwamah"
-              if (rootNo === "1") nafsLabel = "Nafs Ammarah"
-              if (rootNo === "2") nafsLabel = "Nafs Lawwamah"
-              if (rootNo === "3") nafsLabel = "Nafs Muthmainnah"
-
-              // Rating styles based on Score (Visual cues)
-              let ratingBorderColor = "border-amber-200 dark:border-amber-950/20"
-              let ratingBgColor = "bg-amber-50/70 dark:bg-amber-950/10 text-amber-800 dark:text-amber-300"
-              
-              if (score >= 80) {
-                ratingBorderColor = "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
-                ratingBgColor = "bg-teal-50 dark:bg-teal-950/20 text-teal-800 dark:text-teal-400 font-semibold"
-              } else if (score >= 60) {
-                ratingBorderColor = "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
-                ratingBgColor = "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400"
-              } else if (score <= 40) {
-                ratingBorderColor = "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
-                ratingBgColor = "bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400"
-              }
-
-              return (
-                <div
-                  key={p.name}
-                  className={`bg-card border rounded-2xl p-5 shadow-sm flex flex-col gap-4 transition-shadow hover:shadow-md ${ratingBorderColor}`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border/70 pb-3 gap-2">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-mono text-xs font-bold text-primary bg-secondary border border-border px-2 py-0.5 rounded">
-                        Pilar {p.pillar.no}
-                      </span>
-                      <h4 className="font-heading font-semibold text-lg text-foreground">
-                        {p.data?.nama_lengkap || p.name}
+              {/* BOTH SIDE-BY-SIDE VIEW (Exactly as before) */}
+              {mapTab === "both" && (
+                <div className="grid grid-cols-1 gap-8 transition-all duration-300 md:grid-cols-2">
+                  {/* Dynamic Map 1: Score Map */}
+                  <div className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-md">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <h4 className="font-heading text-sm font-semibold">
+                        Pemetaan Warna Berdasar Skor
                       </h4>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${ratingBgColor}`}>
-                        {nafsLabel}
-                      </span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-secondary text-muted-foreground border border-border">
-                        Skor: {score} &bull; Rangka: {p.rank}
+                      <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
+                        SKOR
                       </span>
                     </div>
+                    <div
+                      className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5]"
+                      dangerouslySetInnerHTML={{
+                        __html: getCleanSVG(
+                          tb40Presentation.pemetaan_tafsir_bakat.file,
+                          "score"
+                        ),
+                      }}
+                    />
+                    <p className="mt-1 text-[10px] leading-normal text-muted-foreground">
+                      *Warna mewakili tingkat penguasaan: Hijau (Unggul), Kuning
+                      (Seimbang), Merah (Kelemahan).
+                    </p>
                   </div>
 
-                  {/* Pillar Arabic Calligraphy if exists */}
-                  {p.data?.arab && (
-                    <div className="text-right -mt-2">
-                      <span className="font-heading font-bold text-2xl text-primary/80 tracking-wide font-arabic">
-                        {p.data.arab}
+                  {/* Dynamic Map 2: Rank Map */}
+                  <div className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-md">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <h4 className="font-heading text-sm font-semibold">
+                        Pemetaan Berdasar Rangka (Rank)
+                      </h4>
+                      <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
+                        RANK
                       </span>
                     </div>
-                  )}
-
-                  {/* Trait Definition */}
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-semibold">DEFINISI PILAR</span>
-                    <p className="text-sm text-foreground/90 leading-relaxed font-sans">{p.data?.definisi || "Belum ada definisi terperinci."}</p>
+                    <div
+                      className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5]"
+                      dangerouslySetInnerHTML={{
+                        __html: getCleanSVG(
+                          tb40Presentation.pemetaan_tafsir_bakat_byRank.file,
+                          "rank"
+                        ),
+                      }}
+                    />
+                    <p className="mt-1 text-[10px] leading-normal text-muted-foreground">
+                      *Warna mewakili posisi relatif bakat tersebut dibandingkan
+                      dengan kekuatan bakat Anda yang lain.
+                    </p>
                   </div>
-
-                  {/* Lalai & Lebih Attributes */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-1 bg-secondary/50 border border-border/80 p-4 rounded-xl">
-                    {p.data?.lalai_nama_lengkap && (
-                      <div className="flex flex-col gap-1 border-r border-border/40 pr-2 print:border-none">
-                        <span className="text-[10px] font-mono uppercase text-rose-700 dark:text-rose-400 font-semibold flex items-center gap-1">
-                          ⚠️ Potensi Lalai / Kurang
-                        </span>
-                        <h5 className="font-heading font-medium text-xs text-foreground">{p.data.lalai_nama_lengkap}</h5>
-                        <p className="text-[11px] text-muted-foreground leading-normal mt-0.5">{p.data.lalai_definisi}</p>
-                      </div>
-                    )}
-                    {p.data?.lebih_nama_lengkap && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-mono uppercase text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
-                          ⚠️ Potensi Berlebihan
-                        </span>
-                        <h5 className="font-heading font-medium text-xs text-foreground">{p.data.lebih_nama_lengkap}</h5>
-                        <p className="text-[11px] text-muted-foreground leading-normal mt-0.5">{p.data.lebih_definisi}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recommendation Actions if available */}
-                  {p.data?.profesi && (
-                    <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-semibold">💼 Rekomendasi Profesi & Peran</span>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{p.data.profesi}</p>
-                    </div>
-                  )}
-
-                  {p.data?.jurusan && (
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-semibold">🎓 Jurusan Pendidikan Terkait</span>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{p.data.jurusan}</p>
-                    </div>
-                  )}
                 </div>
-              )
-            })}
+              )}
+            </div>
+          </div>
 
-            {filteredPillars.length === 0 && (
-              <div className="text-center py-12 bg-card border border-border border-dashed rounded-2xl">
-                <HelpCircle className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Tidak menemukan pilar sifat yang cocok dengan pencarian Anda.</p>
+          {/* SECTION 2.5: INTERACTIVE ECHARTS */}
+          <div
+            ref={chartsRef}
+            id="charts"
+            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
+          >
+            <div className="flex flex-col justify-between gap-4 border-b border-border pb-3 md:flex-row md:items-center">
+              <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
+                <BarChart2 className="h-5 w-5 text-primary" /> Grafik Data
+                Interaktif
+              </h3>
+            </div>
+
+            <div className="flex flex-col gap-8">
+              {/* Chart 2: 6 Strengths */}
+              <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h4 className="font-heading text-base font-semibold">
+                    6 Kekuatan Utama
+                  </h4>
+                  <div className="flex rounded-md border border-border bg-secondary/80 p-0.5 shadow-inner">
+                    <button
+                      onClick={() => setChart2Mode("score")}
+                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart2Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      Skor
+                    </button>
+                    <button
+                      onClick={() => setChart2Mode("rank")}
+                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart2Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      Rank
+                    </button>
+                  </div>
+                </div>
+                <div className="w-full">
+                  <EBarChart
+                    height={400}
+                    option={{
+                      title: [
+                        {
+                          text: "Introvert",
+                          left: "20%",
+                          textStyle: {
+                            fontSize: 13,
+                            fontWeight: "bold",
+                            fontFamily: "Inter, sans-serif",
+                            color: "#4b5563",
+                          },
+                        },
+                        {
+                          text: "Extrovert",
+                          right: "20%",
+                          textStyle: {
+                            fontSize: 13,
+                            fontWeight: "bold",
+                            fontFamily: "Inter, sans-serif",
+                            color: "#4b5563",
+                          },
+                        },
+                      ],
+                      tooltip: {
+                        trigger: "axis",
+                        axisPointer: { type: "shadow" },
+                        formatter: (params: any) => {
+                          let res = ""
+                          params.forEach((p: any) => {
+                            let no = ""
+                            if (p.seriesName === "Introvert") {
+                              if (p.name === "Rasa") no = "3"
+                              else if (p.name === "Cipta") no = "2"
+                              else if (p.name === "Karsa") no = "1"
+                            } else {
+                              if (p.name === "Rasa") no = "6"
+                              else if (p.name === "Cipta") no = "5"
+                              else if (p.name === "Karsa") no = "4"
+                            }
+                            const item = strengthsList.find(
+                              (s: any) => s.pillar?.no === no
+                            )
+                            if (item) {
+                              res += `<b>${p.seriesName} - ${item.name}</b>: ${Number(item.score).toFixed(1)} (Rank ${item.rank})<br/>`
+                            }
+                          })
+                          return res
+                        },
+                      },
+                      grid: [
+                        {
+                          left: "5%",
+                          width: "42%",
+                          bottom: "5%",
+                          top: "18%",
+                          containLabel: true,
+                        },
+                        {
+                          right: "5%",
+                          width: "42%",
+                          bottom: "5%",
+                          top: "18%",
+                          containLabel: true,
+                        },
+                      ],
+                      xAxis: [
+                        {
+                          gridIndex: 0,
+                          type: "value",
+                          inverse: true,
+                          show: false,
+                          max: chart2Mode === "score" ? 100 : 6,
+                          min: 0,
+                        },
+                        {
+                          gridIndex: 1,
+                          type: "value",
+                          inverse: false,
+                          show: false,
+                          max: chart2Mode === "score" ? 100 : 6,
+                          min: 0,
+                        },
+                      ],
+                      yAxis: [
+                        {
+                          gridIndex: 0,
+                          type: "category",
+                          position: "right",
+                          axisLine: { show: false },
+                          axisTick: { show: false },
+                          axisLabel: {
+                            show: true,
+                            fontSize: 12,
+                            fontWeight: "bold",
+                            fontFamily: "Inter, sans-serif",
+                            color: "#6b7280",
+                          },
+                          data: ["Rasa", "Cipta", "Karsa"],
+                        },
+                        {
+                          gridIndex: 1,
+                          type: "category",
+                          position: "left",
+                          axisLine: { show: false },
+                          axisTick: { show: false },
+                          axisLabel: { show: false },
+                          data: ["Rasa", "Cipta", "Karsa"],
+                        },
+                      ],
+                      series: [
+                        {
+                          name: "Introvert",
+                          type: "bar",
+                          xAxisIndex: 0,
+                          yAxisIndex: 0,
+                          barWidth: 22,
+                          markLine: {
+                            silent: true,
+                            symbol: "none",
+                            label: {
+                              formatter: "{b}",
+                              position: "end",
+                              fontSize: 9,
+                              fontFamily: "Inter, sans-serif",
+                            },
+                            lineStyle: { type: "dashed", width: 1 },
+                            data:
+                              chart2Mode === "score"
+                                ? [
+                                    {
+                                      xAxis: 80,
+                                      name: "Kuat",
+                                      lineStyle: { color: "#10b981" },
+                                    },
+                                    {
+                                      xAxis: 60,
+                                      name: "Cukup",
+                                      lineStyle: { color: "#f59e0b" },
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      xAxis: 5,
+                                      name: "Top 2",
+                                      lineStyle: { color: "#10b981" },
+                                    },
+                                    {
+                                      xAxis: 3,
+                                      name: "Top 4",
+                                      lineStyle: { color: "#f59e0b" },
+                                    },
+                                  ],
+                          },
+                          data: [
+                            {
+                              value: getVal("3"),
+                              itemStyle: {
+                                color:
+                                  getVal("3") >= 80
+                                    ? {
+                                        type: "linear",
+                                        x: 0,
+                                        y: 0,
+                                        x2: 1,
+                                        y2: 0,
+                                        colorStops: [
+                                          { offset: 0, color: "#34d399" },
+                                          { offset: 1, color: "#059669" },
+                                        ],
+                                      }
+                                    : getVal("3") >= 60
+                                      ? {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#fbbf24" },
+                                            { offset: 1, color: "#d97706" },
+                                          ],
+                                        }
+                                      : {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#f87171" },
+                                            { offset: 1, color: "#dc2626" },
+                                          ],
+                                        },
+                              },
+                              label: {
+                                show: true,
+                                position: "left",
+                                formatter: () => {
+                                  const item = strengthsList.find(
+                                    (s: any) => s.pillar?.no === "3"
+                                  )
+                                  return item
+                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
+                                    : ""
+                                },
+                                fontFamily: "Inter, sans-serif",
+                                fontSize: 10,
+                                color: "#374151",
+                              },
+                            },
+                            {
+                              value: getVal("2"),
+                              itemStyle: {
+                                color:
+                                  getVal("2") >= 80
+                                    ? {
+                                        type: "linear",
+                                        x: 0,
+                                        y: 0,
+                                        x2: 1,
+                                        y2: 0,
+                                        colorStops: [
+                                          { offset: 0, color: "#34d399" },
+                                          { offset: 1, color: "#059669" },
+                                        ],
+                                      }
+                                    : getVal("2") >= 60
+                                      ? {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#fbbf24" },
+                                            { offset: 1, color: "#d97706" },
+                                          ],
+                                        }
+                                      : {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#f87171" },
+                                            { offset: 1, color: "#dc2626" },
+                                          ],
+                                        },
+                              },
+                              label: {
+                                show: true,
+                                position: "left",
+                                formatter: () => {
+                                  const item = strengthsList.find(
+                                    (s: any) => s.pillar?.no === "2"
+                                  )
+                                  return item
+                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
+                                    : ""
+                                },
+                                fontFamily: "Inter, sans-serif",
+                                fontSize: 10,
+                                color: "#374151",
+                              },
+                            },
+                            {
+                              value: getVal("1"),
+                              itemStyle: {
+                                color:
+                                  getVal("1") >= 80
+                                    ? {
+                                        type: "linear",
+                                        x: 0,
+                                        y: 0,
+                                        x2: 1,
+                                        y2: 0,
+                                        colorStops: [
+                                          { offset: 0, color: "#34d399" },
+                                          { offset: 1, color: "#059669" },
+                                        ],
+                                      }
+                                    : getVal("1") >= 60
+                                      ? {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#fbbf24" },
+                                            { offset: 1, color: "#d97706" },
+                                          ],
+                                        }
+                                      : {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#f87171" },
+                                            { offset: 1, color: "#dc2626" },
+                                          ],
+                                        },
+                              },
+                              label: {
+                                show: true,
+                                position: "left",
+                                formatter: () => {
+                                  const item = strengthsList.find(
+                                    (s: any) => s.pillar?.no === "1"
+                                  )
+                                  return item
+                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
+                                    : ""
+                                },
+                                fontFamily: "Inter, sans-serif",
+                                fontSize: 10,
+                                color: "#374151",
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          name: "Extrovert",
+                          type: "bar",
+                          xAxisIndex: 1,
+                          yAxisIndex: 1,
+                          barWidth: 22,
+                          markLine: {
+                            silent: true,
+                            symbol: "none",
+                            label: {
+                              formatter: "{b}",
+                              position: "end",
+                              fontSize: 9,
+                              fontFamily: "Inter, sans-serif",
+                            },
+                            lineStyle: { type: "dashed", width: 1 },
+                            data:
+                              chart2Mode === "score"
+                                ? [
+                                    {
+                                      xAxis: 80,
+                                      name: "Kuat",
+                                      lineStyle: { color: "#10b981" },
+                                    },
+                                    {
+                                      xAxis: 60,
+                                      name: "Cukup",
+                                      lineStyle: { color: "#f59e0b" },
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      xAxis: 5,
+                                      name: "Top 2",
+                                      lineStyle: { color: "#10b981" },
+                                    },
+                                    {
+                                      xAxis: 3,
+                                      name: "Top 4",
+                                      lineStyle: { color: "#f59e0b" },
+                                    },
+                                  ],
+                          },
+                          data: [
+                            {
+                              value: getVal("6"),
+                              itemStyle: {
+                                color:
+                                  getVal("6") >= 80
+                                    ? {
+                                        type: "linear",
+                                        x: 0,
+                                        y: 0,
+                                        x2: 1,
+                                        y2: 0,
+                                        colorStops: [
+                                          { offset: 0, color: "#059669" },
+                                          { offset: 1, color: "#34d399" },
+                                        ],
+                                      }
+                                    : getVal("6") >= 60
+                                      ? {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#d97706" },
+                                            { offset: 1, color: "#fbbf24" },
+                                          ],
+                                        }
+                                      : {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#dc2626" },
+                                            { offset: 1, color: "#f87171" },
+                                          ],
+                                        },
+                              },
+                              label: {
+                                show: true,
+                                position: "right",
+                                formatter: () => {
+                                  const item = strengthsList.find(
+                                    (s: any) => s.pillar?.no === "6"
+                                  )
+                                  return item
+                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
+                                    : ""
+                                },
+                                fontFamily: "Inter, sans-serif",
+                                fontSize: 10,
+                                color: "#374151",
+                              },
+                            },
+                            {
+                              value: getVal("5"),
+                              itemStyle: {
+                                color:
+                                  getVal("5") >= 80
+                                    ? {
+                                        type: "linear",
+                                        x: 0,
+                                        y: 0,
+                                        x2: 1,
+                                        y2: 0,
+                                        colorStops: [
+                                          { offset: 0, color: "#059669" },
+                                          { offset: 1, color: "#34d399" },
+                                        ],
+                                      }
+                                    : getVal("5") >= 60
+                                      ? {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#d97706" },
+                                            { offset: 1, color: "#fbbf24" },
+                                          ],
+                                        }
+                                      : {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#dc2626" },
+                                            { offset: 1, color: "#f87171" },
+                                          ],
+                                        },
+                              },
+                              label: {
+                                show: true,
+                                position: "right",
+                                formatter: () => {
+                                  const item = strengthsList.find(
+                                    (s: any) => s.pillar?.no === "5"
+                                  )
+                                  return item
+                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
+                                    : ""
+                                },
+                                fontFamily: "Inter, sans-serif",
+                                fontSize: 10,
+                                color: "#374151",
+                              },
+                            },
+                            {
+                              value: getVal("4"),
+                              itemStyle: {
+                                color:
+                                  getVal("4") >= 80
+                                    ? {
+                                        type: "linear",
+                                        x: 0,
+                                        y: 0,
+                                        x2: 1,
+                                        y2: 0,
+                                        colorStops: [
+                                          { offset: 0, color: "#059669" },
+                                          { offset: 1, color: "#34d399" },
+                                        ],
+                                      }
+                                    : getVal("4") >= 60
+                                      ? {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#d97706" },
+                                            { offset: 1, color: "#fbbf24" },
+                                          ],
+                                        }
+                                      : {
+                                          type: "linear",
+                                          x: 0,
+                                          y: 0,
+                                          x2: 1,
+                                          y2: 0,
+                                          colorStops: [
+                                            { offset: 0, color: "#dc2626" },
+                                            { offset: 1, color: "#f87171" },
+                                          ],
+                                        },
+                              },
+                              label: {
+                                show: true,
+                                position: "right",
+                                formatter: () => {
+                                  const item = strengthsList.find(
+                                    (s: any) => s.pillar?.no === "4"
+                                  )
+                                  return item
+                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
+                                    : ""
+                                },
+                                fontFamily: "Inter, sans-serif",
+                                fontSize: 10,
+                                color: "#374151",
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    }}
+                  />
+                </div>
               </div>
-            )}
+
+              {/* Chart 1: 40 Pillars */}
+              <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h4 className="font-heading text-base font-semibold">
+                    40 Pilar Sifat
+                  </h4>
+                  <div className="flex rounded-md border border-border bg-secondary/80 p-0.5 shadow-inner">
+                    <button
+                      onClick={() => setChart1Mode("score")}
+                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart1Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      Skor
+                    </button>
+                    <button
+                      onClick={() => setChart1Mode("rank")}
+                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart1Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      Rank
+                    </button>
+                  </div>
+                </div>
+                <div className="w-full">
+                  <EBarChart
+                    height={500}
+                    option={{
+                      tooltip: {
+                        trigger: "axis",
+                        axisPointer: { type: "shadow" },
+                        formatter: (params: any) => {
+                          const dataIndex = params[0].dataIndex
+                          const sortedData =
+                            chart1Mode === "score"
+                              ? [...(tb40Result["40"] || [])].sort(
+                                  (a, b) => b.score - a.score
+                                )
+                              : [...(tb40Result["40"] || [])].sort(
+                                  (a, b) => a.rank - b.rank
+                                )
+                          const item = sortedData[dataIndex]
+                          return `<b>${item.name}</b><br/>Score: ${item.score}<br/>Rank: ${item.rank}`
+                        },
+                      },
+                      grid: {
+                        left: "1%",
+                        right: "1%",
+                        bottom: "15%",
+                        top: "8%",
+                        containLabel: true,
+                      },
+                      xAxis: {
+                        type: "category",
+                        data:
+                          chart1Mode === "score"
+                            ? [...(tb40Result["40"] || [])]
+                                .sort((a, b) => b.score - a.score)
+                                .map((d: any) => d.name)
+                            : [...(tb40Result["40"] || [])]
+                                .sort((a, b) => a.rank - b.rank)
+                                .map((d: any) => d.name),
+                        axisLabel: {
+                          interval: 0,
+                          rotate: 45,
+                          fontSize: 9,
+                          fontFamily: "Inter, sans-serif",
+                        },
+                      },
+                      yAxis: { type: "value", show: false },
+                      series: [
+                        {
+                          type: "bar",
+                          data:
+                            chart1Mode === "score"
+                              ? [...(tb40Result["40"] || [])]
+                                  .sort((a, b) => b.score - a.score)
+                                  .map((d: any) => ({
+                                    value: d.score,
+                                    itemStyle: {
+                                      color:
+                                        d.score >= 80
+                                          ? {
+                                              type: "linear",
+                                              x: 0,
+                                              y: 0,
+                                              x2: 0,
+                                              y2: 1,
+                                              colorStops: [
+                                                { offset: 0, color: "#34d399" },
+                                                { offset: 1, color: "#059669" },
+                                              ],
+                                            }
+                                          : d.score >= 60
+                                            ? {
+                                                type: "linear",
+                                                x: 0,
+                                                y: 0,
+                                                x2: 0,
+                                                y2: 1,
+                                                colorStops: [
+                                                  {
+                                                    offset: 0,
+                                                    color: "#fbbf24",
+                                                  },
+                                                  {
+                                                    offset: 1,
+                                                    color: "#d97706",
+                                                  },
+                                                ],
+                                              }
+                                            : {
+                                                type: "linear",
+                                                x: 0,
+                                                y: 0,
+                                                x2: 0,
+                                                y2: 1,
+                                                colorStops: [
+                                                  {
+                                                    offset: 0,
+                                                    color: "#f87171",
+                                                  },
+                                                  {
+                                                    offset: 1,
+                                                    color: "#dc2626",
+                                                  },
+                                                ],
+                                              },
+                                    },
+                                  }))
+                              : [...(tb40Result["40"] || [])]
+                                  .sort((a, b) => a.rank - b.rank)
+                                  .map((d: any) => ({
+                                    value: 41 - d.rank,
+                                    itemStyle: {
+                                      color:
+                                        d.rank <= 10
+                                          ? {
+                                              type: "linear",
+                                              x: 0,
+                                              y: 0,
+                                              x2: 0,
+                                              y2: 1,
+                                              colorStops: [
+                                                { offset: 0, color: "#34d399" },
+                                                { offset: 1, color: "#059669" },
+                                              ],
+                                            }
+                                          : d.rank <= 30
+                                            ? {
+                                                type: "linear",
+                                                x: 0,
+                                                y: 0,
+                                                x2: 0,
+                                                y2: 1,
+                                                colorStops: [
+                                                  {
+                                                    offset: 0,
+                                                    color: "#fbbf24",
+                                                  },
+                                                  {
+                                                    offset: 1,
+                                                    color: "#d97706",
+                                                  },
+                                                ],
+                                              }
+                                            : {
+                                                type: "linear",
+                                                x: 0,
+                                                y: 0,
+                                                x2: 0,
+                                                y2: 1,
+                                                colorStops: [
+                                                  {
+                                                    offset: 0,
+                                                    color: "#f87171",
+                                                  },
+                                                  {
+                                                    offset: 1,
+                                                    color: "#dc2626",
+                                                  },
+                                                ],
+                                              },
+                                    },
+                                  })),
+                          markLine: {
+                            silent: true,
+                            symbol: "none",
+                            label: {
+                              formatter: "{b}",
+                              position: "end",
+                              fontSize: 9,
+                              fontFamily: "Inter, sans-serif",
+                            },
+                            lineStyle: { type: "dashed", width: 1 },
+                            data:
+                              chart1Mode === "score"
+                                ? [
+                                    {
+                                      yAxis: 80,
+                                      name: "Kuat",
+                                      lineStyle: { color: "#10b981" },
+                                    },
+                                    {
+                                      yAxis: 60,
+                                      name: "Cukup",
+                                      lineStyle: { color: "#f59e0b" },
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      yAxis: 31,
+                                      name: "Top 10",
+                                      lineStyle: { color: "#10b981" },
+                                    },
+                                    {
+                                      yAxis: 11,
+                                      name: "Top 30",
+                                      lineStyle: { color: "#f59e0b" },
+                                    },
+                                  ],
+                          },
+                        },
+                      ],
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: LEARNING STYLE & HEART LANGUAGE */}
+          <div
+            ref={gayaRef}
+            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
+          >
+            <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-2xl font-semibold">
+              <Brain className="h-5 w-5 text-primary" /> Gaya Belajar & Bahasa
+              Hati
+            </h3>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Learning Style Card */}
+              <div className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-md">
+                <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-full bg-primary/5 blur-2xl" />
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl border border-primary/20 bg-primary/10 p-2.5">
+                    <BookOpen className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                      AKAL & METODOLOGI
+                    </span>
+                    <h4 className="font-heading text-lg font-semibold text-foreground">
+                      Gaya Belajar Ideal
+                    </h4>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-secondary/80 p-3 font-heading text-sm leading-relaxed font-medium text-foreground">
+                  "{tb40Presentation.ringkasan_gaya_belajar.data}"
+                </div>
+
+                {/* Detailed Cognitive description parsed from ranked first pillar */}
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Metode belajar dominan Anda sangat dipengaruhi oleh kekuatan
+                  struktur mental utama Anda ({tb40ResultRanked["3"]?.[0]?.name}
+                  ). Pendekatan ini meningkatkan kecepatan retensi informasi,
+                  pemahaman teoritis, dan kenyamanan visual/kinestetik di
+                  lingkungan belajar Anda.
+                </p>
+              </div>
+
+              {/* Heart Language Card */}
+              <div className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-md">
+                <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-full bg-destructive/5 blur-2xl" />
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-2.5">
+                    <Heart className="h-6 w-6 text-destructive" />
+                  </div>
+                  <div>
+                    <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                      EMOSIONAL & SOSIAL
+                    </span>
+                    <h4 className="font-heading text-lg font-semibold text-foreground">
+                      Bahasa Hati & Sentuhan Rasa
+                    </h4>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-secondary/80 p-3 font-heading text-sm leading-relaxed font-medium text-foreground">
+                  "{tb40Presentation.ringkasan_bahasa_hati.data}"
+                </div>
+
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Perasaan dan hubungan interaksi sosial Anda beresonansi paling
+                  kuat ketika tersentuh melalui cara ini. Memahami bahasa hati
+                  ini berguna untuk membangun kemitraan tim yang sehat,
+                  memelihara keluarga, dan menjalin silaturahmi yang harmonis.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 4: FULL DETAILED LIST OF 40 NOBLE CHARACTERISTICS */}
+          <div
+            ref={rincianRef}
+            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
+          >
+            <div className="flex flex-col gap-4 border-b border-border pb-3 md:flex-row md:items-center md:justify-between">
+              <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
+                <MessageSquare className="h-5 w-5 text-primary" /> Rincian Sifat
+                40 Pilar Mulia
+              </h3>
+
+              {/* Search Input Filter */}
+              <div className="relative w-full max-w-xs print:hidden">
+                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
+                <input
+                  type="text"
+                  placeholder="Cari pilar sifat..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full rounded-full border border-input bg-card py-1.5 pr-4 pl-9 text-xs transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <p className="-mt-2 text-sm leading-relaxed text-muted-foreground">
+              Di bawah ini adalah rincian lengkap 40 pilar kepribadian mulia
+              Anda. Setiap sifat dilengkapi dengan definisi, sifat tercela yang
+              mungkin timbul bila berlebihan (atau kurang), serta rekomendasi
+              perbaikan karakter. Gunakan filter di bawah ini untuk menjelajahi
+              profil Anda secara mendalam.
+            </p>
+
+            {/* Premium UI Filter and Sort Controls */}
+            <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card/45 p-4 shadow-xs print:hidden">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                {/* Filter Chips */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="mr-1 font-mono text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                    Klaster:
+                  </span>
+                  {[
+                    { value: "all", label: "Semua" },
+                    { value: "introvert", label: "Introvert" },
+                    { value: "extrovert", label: "Ekstrovert" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFilterBy(opt.value as any)}
+                      className={`cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                        filterBy === opt.value
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+
+                  <span className="mr-1 ml-2 font-mono text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                    Nafs (Jiwa):
+                  </span>
+                  {[
+                    { value: "muthmainnah", label: "Muthmainnah (Rasa)" },
+                    { value: "lawwamah", label: "Lawwamah (Akal)" },
+                    { value: "ammarah", label: "Ammarah (Karsa)" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFilterBy(opt.value as any)}
+                      className={`cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                        filterBy === opt.value
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sort Selector */}
+                <div className="flex shrink-0 items-center gap-2 self-start lg:self-auto">
+                  <span className="font-mono text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                    Urutan:
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="cursor-pointer rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition-all focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="highest">Skor Tertinggi</option>
+                    <option value="lowest">Skor Terendah</option>
+                    <option value="alphabetical">Abjad (Nama A-Z)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {filteredPillars.map((p: any) => {
+                const score = p.score
+                const rootNo = getPillarRoot(p)
+
+                // Determine Nafs Classification based on Root Lineage
+                let nafsLabel = "Nafs Lawwamah"
+                if (rootNo === "1") nafsLabel = "Nafs Ammarah"
+                if (rootNo === "2") nafsLabel = "Nafs Lawwamah"
+                if (rootNo === "3") nafsLabel = "Nafs Muthmainnah"
+
+                // Rating styles based on Score (Visual cues)
+                let ratingBorderColor =
+                  "border-amber-200 dark:border-amber-950/20"
+                let ratingBgColor =
+                  "bg-amber-50/70 dark:bg-amber-950/10 text-amber-800 dark:text-amber-300"
+
+                if (score >= 80) {
+                  ratingBorderColor =
+                    "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
+                  ratingBgColor =
+                    "bg-teal-50 dark:bg-teal-950/20 text-teal-800 dark:text-teal-400 font-semibold"
+                } else if (score >= 60) {
+                  ratingBorderColor =
+                    "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
+                  ratingBgColor =
+                    "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400"
+                } else if (score <= 40) {
+                  ratingBorderColor =
+                    "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
+                  ratingBgColor =
+                    "bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400"
+                }
+
+                return (
+                  <div
+                    key={p.name}
+                    className={`flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md ${ratingBorderColor}`}
+                  >
+                    <div className="flex flex-col justify-between gap-2 border-b border-border/70 pb-3 sm:flex-row sm:items-center">
+                      <div className="flex items-baseline gap-2">
+                        <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-primary">
+                          Pilar {p.pillar.no}
+                        </span>
+                        <h4 className="font-heading text-lg font-semibold text-foreground">
+                          {p.data?.nama_lengkap || p.name}
+                        </h4>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ratingBgColor}`}
+                        >
+                          {nafsLabel}
+                        </span>
+                        <span className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                          Skor: {score} &bull; Rangka: {p.rank}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Pillar Arabic Calligraphy if exists */}
+                    {p.data?.arab && (
+                      <div className="-mt-2 text-right">
+                        <span className="font-arabic font-heading text-2xl font-bold tracking-wide text-primary/80">
+                          {p.data.arab}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Trait Definition */}
+                    <div className="flex flex-col gap-1">
+                      <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                        DEFINISI PILAR
+                      </span>
+                      <p className="font-sans text-sm leading-relaxed text-foreground/90">
+                        {p.data?.definisi || "Belum ada definisi terperinci."}
+                      </p>
+                    </div>
+
+                    {/* Lalai & Lebih Attributes */}
+                    <div className="mt-1 grid grid-cols-1 gap-4 rounded-xl border border-border/80 bg-secondary/50 p-4 sm:grid-cols-2">
+                      {p.data?.lalai_nama_lengkap && (
+                        <div className="flex flex-col gap-1 border-r border-border/40 pr-2 print:border-none">
+                          <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-rose-700 uppercase dark:text-rose-400">
+                            ⚠️ Potensi Lalai / Kurang
+                          </span>
+                          <h5 className="font-heading text-xs font-medium text-foreground">
+                            {p.data.lalai_nama_lengkap}
+                          </h5>
+                          <p className="mt-0.5 text-[11px] leading-normal text-muted-foreground">
+                            {p.data.lalai_definisi}
+                          </p>
+                        </div>
+                      )}
+                      {p.data?.lebih_nama_lengkap && (
+                        <div className="flex flex-col gap-1">
+                          <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-amber-700 uppercase dark:text-amber-400">
+                            ⚠️ Potensi Berlebihan
+                          </span>
+                          <h5 className="font-heading text-xs font-medium text-foreground">
+                            {p.data.lebih_nama_lengkap}
+                          </h5>
+                          <p className="mt-0.5 text-[11px] leading-normal text-muted-foreground">
+                            {p.data.lebih_definisi}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recommendation Actions if available */}
+                    {p.data?.profesi && (
+                      <div className="mt-1 flex flex-col gap-1">
+                        <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                          💼 Rekomendasi Profesi & Peran
+                        </span>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {p.data.profesi}
+                        </p>
+                      </div>
+                    )}
+
+                    {p.data?.jurusan && (
+                      <div className="flex flex-col gap-1">
+                        <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                          🎓 Jurusan Pendidikan Terkait
+                        </span>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {p.data.jurusan}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {filteredPillars.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center">
+                  <HelpCircle className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+                  <p className="text-sm text-muted-foreground">
+                    Tidak menemukan pilar sifat yang cocok dengan pencarian
+                    Anda.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* FOOTER & ACCREDITATION STATEMENT */}
+          <div className="border-t border-border pt-8 pb-12 text-center print:mt-12 print:border-t-2 print:border-black">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Metode Tafsir Bakat 40 (TB40) diselaraskan oleh Lembaga Insan
+              Taqwa. Laporan ini bersifat personal dan dimaksudkan sebagai
+              referensi bimbingan pengembangan karakter dan akhlak mulia.
+            </p>
+            <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
+              ID Laporan: {umum.nama.panggilan.toLowerCase()}-
+              {(umum.usia || "00").toString()}-
+              {Math.floor(Math.random() * 1000)}
+            </p>
           </div>
         </div>
 
-        {/* FOOTER & ACCREDITATION STATEMENT */}
-        <div className="text-center border-t border-border pt-8 pb-12 print:mt-12 print:border-t-2 print:border-black">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Metode Tafsir Bakat 40 (TB40) diselaraskan oleh Lembaga Insan Taqwa. Laporan ini bersifat personal dan dimaksudkan sebagai referensi bimbingan pengembangan karakter dan akhlak mulia.
-          </p>
-          <p className="text-[10px] text-muted-foreground/60 mt-1 font-mono">
-            ID Laporan: {umum.nama.panggilan.toLowerCase()}-{(umum.usia || "00").toString()}-{Math.floor(Math.random() * 1000)}
-          </p>
-        </div>
-
-      </div>
-      
-      {/* Dynamic Printing-specific CSS directly injected for gorgeous PDF styling */}
-      <style>{`
+        {/* Dynamic Printing-specific CSS directly injected for gorgeous PDF styling */}
+        <style>{`
         @media print {
           body {
             background-color: white !important;
@@ -1670,89 +2441,96 @@ function ResultPage() {
       `}</style>
       </div>
 
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0 print:hidden">
-          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+      {/* Reset Modal */}
+      <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
+        <DialogContent className="max-w-md print:hidden">
+          <DialogHeader>
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mt-0.5 animate-bounce">
-                <AlertTriangle className="w-5 h-5" />
+              <div className="mt-0.5 animate-bounce rounded-lg border border-destructive/20 bg-destructive/10 p-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
               </div>
               <div className="flex flex-col gap-1.5 text-left">
-                <h3 className="font-heading font-semibold text-lg text-foreground">
+                <DialogTitle className="font-heading text-lg font-semibold">
                   Ulangi Tes & Hapus Data?
-                </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Apakah Anda yakin ingin mengulangi tes dari awal? Tindakan ini akan **menghapus semua data pendaftaran, jawaban, dan hasil analisis Anda secara permanen** dari perangkat ini.
-                </p>
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-relaxed">
+                  Apakah Anda yakin ingin mengulangi tes dari awal? Tindakan ini
+                  akan menghapus semua data pendaftaran, jawaban, dan hasil
+                  analisis Anda secara permanen dari perangkat ini.
+                </DialogDescription>
               </div>
             </div>
-            
-            <div className="flex items-center justify-end gap-2.5 mt-2 border-t border-border pt-4">
-              <Button
-                variant="ghost"
-                type="button"
-                onClick={() => setShowResetModal(false)}
-                className="text-xs py-1.5 cursor-pointer shadow-none border-none hover:bg-muted"
-              >
-                Batal
-              </Button>
-              <Button
-                variant="destructive"
-                type="button"
-                onClick={confirmResetAndRestart}
-                className="text-xs py-1.5 px-4 cursor-pointer bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold"
-              >
-                Ya, Ulangi & Hapus
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Share Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
-          <div className="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl flex flex-col gap-6 relative animate-in zoom-in-95 duration-200">
-            <button 
-              onClick={() => setShowShareModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          </DialogHeader>
+          <DialogFooter className="mt-2 flex items-center justify-end gap-2.5 border-t border-border pt-4">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setShowResetModal(false)}
+              className="cursor-pointer border-none py-1.5 text-xs shadow-none hover:bg-muted"
             >
-              <X className="w-5 h-5" />
-            </button>
-            
-            <div className="flex flex-col gap-1.5 text-center items-center">
-              <div className="p-3 bg-primary/10 rounded-full text-primary mb-2">
-                <Share2 className="w-6 h-6" />
-              </div>
-              <h3 className="font-heading font-semibold text-xl text-foreground">
-                Bagikan Hasil Penilaian
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Scan QR Code atau salin tautan di bawah untuk membagikan hasil penilaian Anda secara langsung.
-              </p>
-            </div>
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              type="button"
+              onClick={confirmResetAndRestart}
+              className="text-destructive-foreground cursor-pointer bg-destructive px-4 py-1.5 text-xs font-semibold hover:bg-destructive/90"
+            >
+              Ya, Ulangi & Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            <div className="flex justify-center p-4 bg-white rounded-xl border border-border mx-auto">
-              <QRCodeSVG value={shareUrl} size={180} />
-            </div>
-            
-            <div className="flex flex-col gap-2">
-              <span className="text-[10px] font-mono uppercase font-semibold text-muted-foreground ml-1">Tautan Publik</span>
-              <div className="flex items-center gap-2">
-                <input 
-                  type="text" 
-                  readOnly 
-                  value={shareUrl} 
-                  className="flex-1 bg-secondary text-xs rounded-md px-3 py-2.5 border border-border outline-none text-muted-foreground font-mono truncate"
-                />
-                <Button onClick={copyToClipboard} size="sm" className="shrink-0 flex items-center gap-1.5 cursor-pointer">
-                  {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  {isCopied ? "Tersalin" : "Salin"}
-                </Button>
+      {/* Share Modal */}
+      <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <div className="flex flex-col items-center gap-1.5 text-center">
+              <div className="mb-2 rounded-full bg-primary/10 p-3 text-primary">
+                <Share2 className="h-6 w-6" />
               </div>
+              <DialogTitle className="font-heading text-xl font-semibold">
+                Bagikan Hasil Penilaian
+              </DialogTitle>
+              <DialogDescription className="text-xs leading-relaxed">
+                Scan QR Code atau salin tautan di bawah untuk membagikan hasil
+                penilaian Anda secara langsung.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="mx-auto flex justify-center rounded-xl border border-border bg-white p-4">
+            <QRCodeSVG value={shareUrl} size={180} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="ml-1 font-mono text-[10px] font-semibold text-muted-foreground uppercase">
+              Tautan Publik
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                className="flex-1 truncate rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-xs text-muted-foreground outline-none"
+              />
+              <Button
+                onClick={copyToClipboard}
+                size="sm"
+                className="flex shrink-0 cursor-pointer items-center gap-1.5"
+              >
+                {isCopied ? (
+                  <Check className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+                {isCopied ? "Tersalin" : "Salin"}
+              </Button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

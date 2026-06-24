@@ -23,7 +23,7 @@ const FieldLabel = React.forwardRef<
     <label
       ref={ref}
       className={cn(
-        "text-xs font-medium text-foreground flex items-center gap-1.5 select-none cursor-pointer",
+        "flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground select-none",
         className
       )}
       {...props}
