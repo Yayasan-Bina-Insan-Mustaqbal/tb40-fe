@@ -19,7 +19,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { logout } from '@/lib/auth'
-import { LogOutIcon } from "lucide-react"
+import { LogOutIcon, EllipsisVerticalIcon } from "lucide-react"
 
 export function NavUser({
   user,
