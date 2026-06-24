@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { getAnalytics } from '@/lib/api-client'
+import { getAnalyticsData } from '@/lib/analytics.server'
 import { ExternalLinkIcon } from 'lucide-react'
 
 type User = {
@@ -39,15 +39,18 @@ export function AnalyticsDashboard() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getAnalytics()
+    getAnalyticsData()
       .then((result) => {
         if (result.success) {
-          setData(result as AnalyticsData)
+          setData(result)
         } else {
-          setError('Failed to load analytics')
+          setError(result.error || 'Failed to load analytics')
         }
       })
-      .catch(() => setError('Failed to fetch analytics'))
+      .catch((err) => {
+        console.error('Analytics fetch error:', err)
+        setError('Failed to fetch analytics')
+      })
       .finally(() => setLoading(false))
   }, [])
 
