@@ -2240,7 +2240,7 @@ function ResultPage() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {filteredPillars.map((p: any) => {
+              {filteredPillars.map((p: any, pIdx: number) => {
                 const score = p.score
                 const rootNo = getPillarRoot(p)
 
@@ -2276,7 +2276,7 @@ function ResultPage() {
                 return (
                   <div
                     key={p.name}
-                    className={`flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md ${ratingBorderColor}`}
+                    className={`flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md ${ratingBorderColor} ${(pIdx + 1) % 2 === 0 ? "print:break-after-page" : ""}`}
                   >
                     <div className="flex flex-col justify-between gap-2 border-b border-border/70 pb-3 sm:flex-row sm:items-center">
                       <div className="flex items-baseline gap-2">
