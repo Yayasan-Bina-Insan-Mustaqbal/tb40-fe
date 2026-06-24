@@ -2,7 +2,7 @@
  * API client for analytics database operations
  */
 
-const API_BASE_URL = import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:5000'
+const API_BASE_URL = '' // Use relative URLs - frontend will proxy to analytics API
 
 export type SaveUserData = {
   sessionId: string
