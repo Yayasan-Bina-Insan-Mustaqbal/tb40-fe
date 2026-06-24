@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { getAnalytics } from '@/lib/api-client'
+import { ExternalLinkIcon } from 'lucide-react'
 
 type User = {
   id: number
@@ -158,13 +160,13 @@ export function AnalyticsDashboard() {
                 <TableHead>Answers</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Started</TableHead>
-                <TableHead>Completed</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No users yet
                   </TableCell>
                 </TableRow>
@@ -189,6 +191,27 @@ export function AnalyticsDashboard() {
                       {user.completed_at
                         ? new Date(user.completed_at).toLocaleDateString()
                         : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {user.is_complete && user.session_id ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <a
+                            href={`/result?session=${user.session_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1"
+                          >
+                            View Result
+                            <ExternalLinkIcon className="h-3 w-3" />
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
