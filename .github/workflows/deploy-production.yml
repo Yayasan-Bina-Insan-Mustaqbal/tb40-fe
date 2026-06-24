@@ -1,0 +1,142 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'Dockerfile'
+      - '.github/workflows/deploy-production.yml'
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+      
+      - name: Output image tags
+        run: |
+          echo "Image pushed with tags:"
+          echo "${{ steps.meta.outputs.tags }}"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER_HOST }}
+          username: ${{ secrets.PRODUCTION_SERVER_USER }}
+          password: ${{ secrets.PRODUCTION_SERVER_PASSWORD }}
+          script: |
+            set -e
+            
+            echo "🚀 Starting deployment..."
+            
+            # Login to GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Pull new image
+            echo "📦 Pulling image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main"
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            
+            # Stop and remove old container
+            echo "🛑 Stopping old container..."
+            docker stop tb40-frontend || true
+            docker rm tb40-frontend || true
+            
+            # Run new container
+            echo "▶️  Starting new container..."
+            docker run -d \
+              --name tb40-frontend \
+              --restart unless-stopped \
+              --network tb40-network \
+              -p 3000:3030 \
+              --env-file /root/tb40-frontend/.env \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            
+            # Wait for container to start
+            sleep 5
+            
+            # Verify container is running
+            if docker ps | grep -q tb40-frontend; then
+              echo "✅ Deployment successful!"
+              docker ps | grep tb40-frontend
+            else
+              echo "❌ Deployment failed - container not running"
+              docker logs tb40-frontend --tail 50
+              exit 1
+            fi
+            
+            # Cleanup old images (keep last 3)
+            echo "🧹 Cleaning up old images..."
+            docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} --format "{{.ID}} {{.CreatedAt}}" | sort -rk 2 | tail -n +4 | awk '{print $1}' | xargs -r docker rmi || true
+            
+            echo "🎉 Deployment complete!"
+      
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment to production succeeded"
+          else
+            echo "❌ Deployment to production failed"
+          fi
