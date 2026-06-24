@@ -2,7 +2,11 @@
  * API client for analytics database operations
  */
 
-const API_BASE_URL = '' // Use relative URLs - frontend will proxy to analytics API
+// In production, connect directly to analytics API container
+// Frontend and analytics API are on same Docker network
+const API_BASE_URL = typeof window === 'undefined' 
+  ? 'http://tb40-analytics:5000' // Server-side: use Docker service name
+  : import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:5000' // Client-side: use env or fallback
 
 export type SaveUserData = {
   sessionId: string
