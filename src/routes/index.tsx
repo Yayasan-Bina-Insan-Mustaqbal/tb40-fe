@@ -1,3 +1,4 @@
+import posthog from "posthog-js"
 import { useState, useEffect } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
@@ -140,6 +141,22 @@ function LandingPage() {
       testMode,
     }
     
+    if (typeof window !== "undefined") {
+      try {
+        posthog.identify(nickName.trim(), {
+          name: fullName.trim(),
+          age: age,
+          testMode: testMode
+        })
+        posthog.capture("registration_completed", {
+          age: age,
+          test_mode: testMode,
+          api_type: apiType
+        })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
     localStorage.setItem("tb40_umum", JSON.stringify(umumData))
     navigate({ to: "/test" as any })
   }

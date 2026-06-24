@@ -1,3 +1,4 @@
+import posthog from "posthog-js"
 import { useState, useEffect, useCallback } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
@@ -396,6 +397,13 @@ function TestWizard() {
     setAnswersV2(newAnswers)
     localStorage.setItem("tb40_answers_v2", JSON.stringify(newAnswers))
     setCurrentTier("tier_2")
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("assessment_step_completed", { tier: "tier_1", introvert, extrovert })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
   }
 
   // When tier_2 is answered → prepare tier_3 with all 40 questions + smart defaults
@@ -408,6 +416,13 @@ function TestWizard() {
     setV2Page(0)
     const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
     await loadAllQuestionsForTier3(type, newAnswers)
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("assessment_step_completed", { tier: "tier_2", ranking: orderedArray })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
   }
 
   // Handle tier_3 slider change — key by original question index
@@ -499,6 +514,13 @@ function TestWizard() {
   const submitTest = async () => {
     setIsSubmitting(true)
     setSubmitStep(0)
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("assessment_submitted", { mode: "precision" })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
     
     const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
     const payload = {
@@ -567,6 +589,13 @@ function TestWizard() {
   const submitV2Test = async () => {
     setIsSubmitting(true)
     setSubmitStep(0)
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("assessment_submitted", { mode: "adaptive" })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
     
     const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
     // Build ordered array[40] for the v0.1 API: index 0 = q1, index 39 = q40

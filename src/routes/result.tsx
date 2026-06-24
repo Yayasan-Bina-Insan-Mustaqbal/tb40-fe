@@ -1,3 +1,4 @@
+import posthog from "posthog-js"
 import { useState, useEffect, useRef } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import LZString from "lz-string"
@@ -98,6 +99,13 @@ function ResultPage() {
               setIsV2(false)
               
               localStorage.setItem("tb40_umum", JSON.stringify(payload.u))
+              if (typeof window !== "undefined") {
+                try {
+                  posthog.capture("result_viewed", { shared: true, test_mode: "adaptive" })
+                } catch (err) {
+                  console.warn("PostHog tracking failed", err)
+                }
+              }
               localStorage.setItem("tb40_result", JSON.stringify(resultData))
               setIsCalculating(false)
               
@@ -135,6 +143,16 @@ function ResultPage() {
           setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
         }
 
+        if (typeof window !== "undefined") {
+          try {
+            posthog.capture("result_viewed", {
+              shared: false,
+              test_mode: parsedResult.version === "v0.2" ? "adaptive" : "precision"
+            })
+          } catch (err) {
+            console.warn("PostHog tracking failed", err)
+          }
+        }
       } catch (e) {
         console.error("Failed to parse stored results", e)
         navigate({ to: "/" as any })
@@ -183,6 +201,13 @@ function ResultPage() {
 
   const handleShare = () => {
     console.log("handleShare called!")
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("share_button_clicked")
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
     try {
       const savedUmum = localStorage.getItem("tb40_umum")
       const savedAnswers = localStorage.getItem("tb40_answers") || localStorage.getItem("tb40_answers_v2_tier3")
@@ -585,6 +610,13 @@ function ResultPage() {
 
   // Handle printing/PDF rendering
   const handlePrint = () => {
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("pdf_printed")
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
     window.print()
   }
 
