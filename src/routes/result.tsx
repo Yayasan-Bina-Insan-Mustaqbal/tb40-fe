@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import LZString from "lz-string"
+import { QRCodeSVG } from "qrcode.react"
+import { BarChart as EBarChart } from "@devstool/shadcn-echarts"
 import { Button } from "@/components/ui/button"
 import {
   Sparkles,
@@ -15,7 +18,12 @@ import {
   HelpCircle,
   RotateCcw,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Share2,
+  Copy,
+  Check,
+  X,
+  BarChart2
 } from "lucide-react"
 
 export const Route = createFileRoute("/result")({ component: ResultPage })
@@ -35,6 +43,14 @@ function ResultPage() {
   
   // UI State
   const [activeSection, setActiveSection] = useState("ringkasan")
+  const [isCalculating, setIsCalculating] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareUrl, setShareUrl] = useState("")
+  const [isCopied, setIsCopied] = useState(false)
+  
+  const [chart1Mode, setChart1Mode] = useState<"score" | "rank">("score")
+  const [chart2Mode, setChart2Mode] = useState<"score" | "rank">("score")
+  
   const [mapTab, setMapTab] = useState<"score" | "rank" | "both">("both")
   const [searchTerm, setSearchTerm] = useState("")
   const [filterBy, setFilterBy] = useState<"all" | "introvert" | "extrovert" | "muthmainnah" | "lawwamah" | "ammarah">("all")
@@ -44,39 +60,88 @@ function ResultPage() {
   // Refs for auto-scroll logic
   const ringkasanRef = useRef<HTMLDivElement>(null)
   const pemetaanRef = useRef<HTMLDivElement>(null)
+  const chartsRef = useRef<HTMLDivElement>(null)
   const gayaRef = useRef<HTMLDivElement>(null)
   const rincianRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    try {
-      const savedUmum = localStorage.getItem("tb40_umum")
-      const savedResult = localStorage.getItem("tb40_result")
-      
-      if (!savedUmum || !savedResult) {
+    const handleInitialLoad = async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search)
+        const shareData = urlParams.get("share")
+        
+        if (shareData) {
+          setIsCalculating(true)
+          try {
+            const decompressed = LZString.decompressFromEncodedURIComponent(shareData)
+            if (decompressed) {
+              const payload = JSON.parse(decompressed)
+              setUmum(payload.u)
+              
+              const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4040"
+              const type = payload.t || "tb40"
+              const response = await fetch(`${apiUrl}/api/v0.1/${type}/calculation`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ parts: { umum: payload.u, [type]: payload.a } }),
+              })
+              
+              if (!response.ok) throw new Error("Failed to calculate shared result")
+              
+              const resultData = await response.json()
+              const parsedResult = resultData
+              
+              const tb40Data = parsedResult.parts?.tb40 || parsedResult.parts?.tb40anak || parsedResult
+              setTb40Result(tb40Data.tb40Result || tb40Data.result)
+              setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
+              setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+              setIsV2(false)
+              
+              localStorage.setItem("tb40_umum", JSON.stringify(payload.u))
+              localStorage.setItem("tb40_result", JSON.stringify(resultData))
+              setIsCalculating(false)
+              
+              // Remove ?share from URL without refreshing
+              window.history.replaceState({}, document.title, window.location.pathname)
+              return
+            }
+          } catch (err) {
+            console.error("Failed to parse shared data", err)
+            setIsCalculating(false)
+          }
+        }
+
+        const savedUmum = localStorage.getItem("tb40_umum")
+        const savedResult = localStorage.getItem("tb40_result")
+        
+        if (!savedUmum || !savedResult) {
+          navigate({ to: "/" as any })
+          return
+        }
+
+        const parsedUmum = JSON.parse(savedUmum)
+        const parsedResult = JSON.parse(savedResult)
+        
+        setUmum(parsedUmum)
+
+        if (parsedResult.version === "v0.2" && parsedResult.status === "complete" && parsedResult.result && !parsedResult.parts) {
+          setIsV2(true)
+          setV2Result(parsedResult.result)
+        } else {
+          setIsV2(false)
+          const tb40Data = parsedResult.parts?.tb40 || parsedResult
+          setTb40Result(tb40Data.tb40Result || tb40Data.result)
+          setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
+          setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+        }
+
+      } catch (e) {
+        console.error("Failed to parse stored results", e)
         navigate({ to: "/" as any })
-        return
       }
-
-      const parsedUmum = JSON.parse(savedUmum)
-      const parsedResult = JSON.parse(savedResult)
-      
-      setUmum(parsedUmum)
-
-      if (parsedResult.version === "v0.2" || (parsedResult.status === "complete" && parsedResult.result)) {
-        setIsV2(true)
-        setV2Result(parsedResult.result)
-      } else {
-        setIsV2(false)
-        const tb40Data = parsedResult.parts?.tb40 || parsedResult
-        setTb40Result(tb40Data.tb40Result || tb40Data.result)
-        setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
-        setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
-      }
-
-    } catch (e) {
-      console.error("Failed to parse stored results", e)
-      navigate({ to: "/" as any })
     }
+    
+    handleInitialLoad()
   }, [navigate])
 
   // Monitor scroll for floating nav highlights
@@ -85,6 +150,7 @@ function ResultPage() {
       const sections = [
         { id: "ringkasan", ref: ringkasanRef },
         { id: "pemetaan", ref: pemetaanRef },
+        { id: "charts", ref: chartsRef },
         { id: "gaya", ref: gayaRef },
         { id: "rincian", ref: rincianRef },
       ]
@@ -104,7 +170,54 @@ function ResultPage() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  if (!umum || (!tb40Result && !isV2)) return null
+  if (isCalculating) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <Sparkles className="w-8 h-8 text-primary animate-spin" />
+        <p className="text-muted-foreground font-medium animate-pulse">Menghitung Hasil Penilaian Anda...</p>
+      </div>
+    )
+  }
+
+  if (!umum || (!tb40Result && !v2Result)) return null
+
+  const handleShare = () => {
+    console.log("handleShare called!")
+    try {
+      const savedUmum = localStorage.getItem("tb40_umum")
+      const savedAnswers = localStorage.getItem("tb40_answers") || localStorage.getItem("tb40_answers_v2_tier3")
+      
+      if (!savedUmum || !savedAnswers) return
+      
+      let parsedAnswers = JSON.parse(savedAnswers)
+      if (!Array.isArray(parsedAnswers)) {
+        // Ensure it's an array for the API
+        parsedAnswers = Array.from({length: 40}).map((_, i) => parsedAnswers[i] || parsedAnswers[`q${i}`] || parsedAnswers[(i+1).toString()] || 60)
+      }
+      
+      const parsedUmum = JSON.parse(savedUmum)
+      
+      const compactPayload = {
+        u: parsedUmum,
+        a: parsedAnswers,
+        t: "tb40" 
+      }
+      
+      const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(compactPayload))
+      const url = `${window.location.origin}/result?share=${compressed}`
+      
+      setShareUrl(url)
+      setShowShareModal(true)
+    } catch(e) {
+      console.error("Share error", e)
+    }
+  }
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(shareUrl)
+    setIsCopied(true)
+    setTimeout(() => setIsCopied(false), 2000)
+  }
 
   // Confirmation for Reset
   const confirmResetAndRestart = () => {
@@ -285,6 +398,52 @@ function ResultPage() {
 
           </div>
         </div>
+
+        {/* Share Modal */}
+        {showShareModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
+            <div className="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl flex flex-col gap-6 relative animate-in zoom-in-95 duration-200">
+              <button 
+                onClick={() => setShowShareModal(false)}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="flex flex-col gap-1.5 text-center items-center">
+                <div className="p-3 bg-primary/10 rounded-full text-primary mb-2">
+                  <Share2 className="w-6 h-6" />
+                </div>
+                <h3 className="font-heading font-semibold text-xl text-foreground">
+                  Bagikan Hasil Penilaian
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Scan QR Code atau salin tautan di bawah untuk membagikan hasil penilaian Anda secara langsung.
+                </p>
+              </div>
+
+              <div className="flex justify-center p-4 bg-white rounded-xl border border-border mx-auto">
+                <QRCodeSVG value={shareUrl} size={180} />
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-mono uppercase font-semibold text-muted-foreground ml-1">Tautan Publik</span>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={shareUrl} 
+                    className="flex-1 bg-secondary text-xs rounded-md px-3 py-2.5 border border-border outline-none text-muted-foreground font-mono truncate"
+                  />
+                  <Button onClick={copyToClipboard} size="sm" className="shrink-0 flex items-center gap-1.5 cursor-pointer">
+                    {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {isCopied ? "Tersalin" : "Salin"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Reset / Restart Modal */}
         {showResetModal && (
@@ -511,6 +670,13 @@ function ResultPage() {
       return 0
     })
 
+  const strengthsList = (tb40Result && tb40Result["6"]) || []
+  const getVal = (no: string) => {
+    const item = strengthsList.find((s: any) => s.pillar?.no === no)
+    if (!item) return 0
+    return chart2Mode === "score" ? Number(item.score ?? 0) : 7 - Number(item.rank ?? 0)
+  }
+
   return (
     <>
       <div className="min-h-screen bg-background text-foreground flex flex-col relative print:bg-white print:text-black">
@@ -543,6 +709,16 @@ function ResultPage() {
         </button>
 
         <button
+          onClick={() => scrollTo(chartsRef)}
+          className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
+            activeSection === "charts" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${activeSection === "charts" ? "bg-primary" : "bg-transparent"}`} />
+          Grafik Data
+        </button>
+
+        <button
           onClick={() => scrollTo(gayaRef)}
           className={`flex items-center gap-2 text-xs text-left font-medium transition-all ${
             activeSection === "gaya" ? "text-primary translate-x-1" : "text-muted-foreground hover:text-foreground"
@@ -564,9 +740,14 @@ function ResultPage() {
         
         <hr className="border-border/80 my-1" />
         
-        <Button onClick={handlePrint} variant="outline" size="sm" className="flex items-center gap-1.5 text-xs py-1.5">
-          <Printer className="w-3.5 h-3.5" /> Cetak PDF
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button onClick={handlePrint} variant="outline" size="sm" className="flex items-center gap-1.5 text-xs py-1.5 cursor-pointer">
+            <Printer className="w-3.5 h-3.5" /> Cetak PDF
+          </Button>
+          <Button onClick={handleShare} variant="default" size="sm" className="flex items-center gap-1.5 text-xs py-1.5 cursor-pointer shadow-sm">
+            <Share2 className="w-3.5 h-3.5" /> Bagikan Hasil
+          </Button>
+        </div>
       </div>
 
       {/* CORE CONTENT LAYOUT */}
@@ -594,8 +775,11 @@ function ResultPage() {
             <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded dark:bg-emerald-950/20 dark:text-emerald-400">
               Perhitungan Selesai
             </span>
-            <Button onClick={handlePrint} size="sm" className="flex items-center gap-1.5 font-heading">
+            <Button onClick={handlePrint} variant="outline" size="sm" className="flex items-center gap-1.5 font-heading cursor-pointer">
               <Printer className="w-4 h-4" /> Cetak PDF
+            </Button>
+            <Button onClick={handleShare} size="sm" className="flex items-center gap-1.5 font-heading cursor-pointer shadow-sm">
+              <Share2 className="w-4 h-4" /> Bagikan
             </Button>
           </div>
         </div>
@@ -790,6 +974,355 @@ function ResultPage() {
 
               </div>
             )}
+
+          </div>
+        </div>
+
+        {/* SECTION 2.5: INTERACTIVE ECHARTS */}
+        <div ref={chartsRef} id="charts" className="scroll-mt-12 flex flex-col gap-6 print:break-before-page">
+          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-3 gap-4">
+            <h3 className="font-heading font-semibold text-2xl flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-primary" /> Grafik Data Interaktif
+            </h3>
+          </div>
+          
+          <div className="flex flex-col gap-8">
+
+            {/* Chart 2: 6 Strengths */}
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-md flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h4 className="font-heading font-semibold text-base">6 Kekuatan Utama</h4>
+                <div className="flex bg-secondary/80 border border-border p-0.5 rounded-md shadow-inner">
+                  <button onClick={() => setChart2Mode("score")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart2Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Skor</button>
+                  <button onClick={() => setChart2Mode("rank")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart2Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Rank</button>
+                </div>
+              </div>
+              <div className="w-full">
+                <EBarChart
+                  height={400}
+                  option={{
+                    title: [
+                      { text: "Introvert", left: "20%", textStyle: { fontSize: 13, fontWeight: "bold", fontFamily: "Inter, sans-serif", color: "#4b5563" } },
+                      { text: "Extrovert", right: "20%", textStyle: { fontSize: 13, fontWeight: "bold", fontFamily: "Inter, sans-serif", color: "#4b5563" } }
+                    ],
+                    tooltip: {
+                      trigger: "axis",
+                      axisPointer: { type: "shadow" },
+                      formatter: (params: any) => {
+                        let res = ""
+                        params.forEach((p: any) => {
+                          let no = ""
+                          if (p.seriesName === "Introvert") {
+                            if (p.name === "Rasa") no = "3"
+                            else if (p.name === "Cipta") no = "2"
+                            else if (p.name === "Karsa") no = "1"
+                          } else {
+                            if (p.name === "Rasa") no = "6"
+                            else if (p.name === "Cipta") no = "5"
+                            else if (p.name === "Karsa") no = "4"
+                          }
+                          const item = strengthsList.find((s: any) => s.pillar?.no === no)
+                          if (item) {
+                            res += `<b>${p.seriesName} - ${item.name}</b>: ${Number(item.score).toFixed(1)} (Rank ${item.rank})<br/>`
+                          }
+                        })
+                        return res
+                      }
+                    },
+                    grid: [
+                      { left: "5%", width: "42%", bottom: "5%", top: "18%", containLabel: true },
+                      { right: "5%", width: "42%", bottom: "5%", top: "18%", containLabel: true }
+                    ],
+                    xAxis: [
+                      { gridIndex: 0, type: "value", inverse: true, show: false, max: chart2Mode === "score" ? 100 : 6, min: 0 },
+                      { gridIndex: 1, type: "value", inverse: false, show: false, max: chart2Mode === "score" ? 100 : 6, min: 0 }
+                    ],
+                    yAxis: [
+                      {
+                        gridIndex: 0,
+                        type: "category",
+                        position: "right",
+                        axisLine: { show: false },
+                        axisTick: { show: false },
+                        axisLabel: {
+                          show: true,
+                          fontSize: 12,
+                          fontWeight: "bold",
+                          fontFamily: "Inter, sans-serif",
+                          color: "#6b7280"
+                        },
+                        data: ["Rasa", "Cipta", "Karsa"]
+                      },
+                      {
+                        gridIndex: 1,
+                        type: "category",
+                        position: "left",
+                        axisLine: { show: false },
+                        axisTick: { show: false },
+                        axisLabel: { show: false },
+                        data: ["Rasa", "Cipta", "Karsa"]
+                      }
+                    ],
+                    series: [
+                      {
+                        name: "Introvert",
+                        type: "bar",
+                        xAxisIndex: 0,
+                        yAxisIndex: 0,
+                        barWidth: 22,
+                        markLine: {
+                          silent: true,
+                          symbol: "none",
+                          label: { formatter: "{b}", position: "end", fontSize: 9, fontFamily: "Inter, sans-serif" },
+                          lineStyle: { type: "dashed", width: 1 },
+                          data: chart2Mode === "score"
+                            ? [
+                                { xAxis: 80, name: "Kuat", lineStyle: { color: "#10b981" } },
+                                { xAxis: 60, name: "Cukup", lineStyle: { color: "#f59e0b" } }
+                              ]
+                            : [
+                                { xAxis: 5, name: "Top 2", lineStyle: { color: "#10b981" } },
+                                { xAxis: 3, name: "Top 4", lineStyle: { color: "#f59e0b" } }
+                              ]
+                        },
+                        data: [
+                          {
+                            value: getVal("3"),
+                            itemStyle: {
+                              color: getVal("3") >= 80 
+                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
+                                : getVal("3") >= 60
+                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
+                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
+                            },
+                            label: {
+                              show: true,
+                              position: "left",
+                              formatter: () => {
+                                const item = strengthsList.find((s: any) => s.pillar?.no === "3")
+                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
+                              },
+                              fontFamily: "Inter, sans-serif",
+                              fontSize: 10,
+                              color: "#374151"
+                            }
+                          },
+                          {
+                            value: getVal("2"),
+                            itemStyle: {
+                              color: getVal("2") >= 80
+                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
+                                : getVal("2") >= 60
+                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
+                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
+                            },
+                            label: {
+                              show: true,
+                              position: "left",
+                              formatter: () => {
+                                const item = strengthsList.find((s: any) => s.pillar?.no === "2")
+                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
+                              },
+                              fontFamily: "Inter, sans-serif",
+                              fontSize: 10,
+                              color: "#374151"
+                            }
+                          },
+                          {
+                            value: getVal("1"),
+                            itemStyle: {
+                              color: getVal("1") >= 80
+                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
+                                : getVal("1") >= 60
+                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
+                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
+                            },
+                            label: {
+                              show: true,
+                              position: "left",
+                              formatter: () => {
+                                const item = strengthsList.find((s: any) => s.pillar?.no === "1")
+                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
+                              },
+                              fontFamily: "Inter, sans-serif",
+                              fontSize: 10,
+                              color: "#374151"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        name: "Extrovert",
+                        type: "bar",
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        barWidth: 22,
+                        markLine: {
+                          silent: true,
+                          symbol: "none",
+                          label: { formatter: "{b}", position: "end", fontSize: 9, fontFamily: "Inter, sans-serif" },
+                          lineStyle: { type: "dashed", width: 1 },
+                          data: chart2Mode === "score"
+                            ? [
+                                { xAxis: 80, name: "Kuat", lineStyle: { color: "#10b981" } },
+                                { xAxis: 60, name: "Cukup", lineStyle: { color: "#f59e0b" } }
+                              ]
+                            : [
+                                { xAxis: 5, name: "Top 2", lineStyle: { color: "#10b981" } },
+                                { xAxis: 3, name: "Top 4", lineStyle: { color: "#f59e0b" } }
+                              ]
+                        },
+                        data: [
+                          {
+                            value: getVal("6"),
+                            itemStyle: {
+                              color: getVal("6") >= 80
+                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#34d399' }] }
+                                : getVal("6") >= 60
+                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#d97706' }, { offset: 1, color: '#fbbf24' }] }
+                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#dc2626' }, { offset: 1, color: '#f87171' }] }
+                            },
+                            label: {
+                              show: true,
+                              position: "right",
+                              formatter: () => {
+                                const item = strengthsList.find((s: any) => s.pillar?.no === "6")
+                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
+                              },
+                              fontFamily: "Inter, sans-serif",
+                              fontSize: 10,
+                              color: "#374151"
+                            }
+                          },
+                          {
+                            value: getVal("5"),
+                            itemStyle: {
+                              color: getVal("5") >= 80
+                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#34d399' }] }
+                                : getVal("5") >= 60
+                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#d97706' }, { offset: 1, color: '#fbbf24' }] }
+                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#dc2626' }, { offset: 1, color: '#f87171' }] }
+                            },
+                            label: {
+                              show: true,
+                              position: "right",
+                              formatter: () => {
+                                const item = strengthsList.find((s: any) => s.pillar?.no === "5")
+                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
+                              },
+                              fontFamily: "Inter, sans-serif",
+                              fontSize: 10,
+                              color: "#374151"
+                            }
+                          },
+                          {
+                            value: getVal("4"),
+                            itemStyle: {
+                              color: getVal("4") >= 80
+                                ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#34d399' }] }
+                                : getVal("4") >= 60
+                                  ? { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#d97706' }, { offset: 1, color: '#fbbf24' }] }
+                                  : { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#dc2626' }, { offset: 1, color: '#f87171' }] }
+                            },
+                            label: {
+                              show: true,
+                              position: "right",
+                              formatter: () => {
+                                const item = strengthsList.find((s: any) => s.pillar?.no === "4")
+                                return item ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}` : ""
+                              },
+                              fontFamily: "Inter, sans-serif",
+                              fontSize: 10,
+                              color: "#374151"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Chart 1: 40 Pillars */}
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-md flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h4 className="font-heading font-semibold text-base">40 Pilar Sifat</h4>
+                <div className="flex bg-secondary/80 border border-border p-0.5 rounded-md shadow-inner">
+                  <button onClick={() => setChart1Mode("score")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart1Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Skor</button>
+                  <button onClick={() => setChart1Mode("rank")} className={`px-2 py-1 rounded text-[10px] font-mono uppercase font-bold transition-all ${chart1Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Rank</button>
+                </div>
+              </div>
+              <div className="w-full">
+                <EBarChart
+                  height={500}
+                  option={{
+                    tooltip: {
+                      trigger: "axis",
+                      axisPointer: { type: "shadow" },
+                      formatter: (params: any) => {
+                        const dataIndex = params[0].dataIndex
+                        const sortedData = chart1Mode === "score" 
+                          ? [...(tb40Result["40"] || [])].sort((a, b) => b.score - a.score)
+                          : [...(tb40Result["40"] || [])].sort((a, b) => a.rank - b.rank)
+                        const item = sortedData[dataIndex]
+                        return `<b>${item.name}</b><br/>Score: ${item.score}<br/>Rank: ${item.rank}`
+                      }
+                    },
+                    grid: { left: "1%", right: "1%", bottom: "15%", top: "8%", containLabel: true },
+                    xAxis: {
+                      type: "category",
+                      data: chart1Mode === "score" 
+                        ? [...(tb40Result["40"] || [])].sort((a, b) => b.score - a.score).map((d: any) => d.name)
+                        : [...(tb40Result["40"] || [])].sort((a, b) => a.rank - b.rank).map((d: any) => d.name),
+                      axisLabel: { interval: 0, rotate: 45, fontSize: 9, fontFamily: "Inter, sans-serif" }
+                    },
+                    yAxis: { type: "value", show: false },
+                    series: [
+                      {
+                        type: "bar",
+                        data: chart1Mode === "score"
+                          ? [...(tb40Result["40"] || [])].sort((a, b) => b.score - a.score).map((d: any) => ({
+                              value: d.score,
+                              itemStyle: {
+                                color: d.score >= 80
+                                  ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
+                                  : d.score >= 60
+                                    ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
+                                    : { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
+                              }
+                            }))
+                          : [...(tb40Result["40"] || [])].sort((a, b) => a.rank - b.rank).map((d: any) => ({
+                              value: 41 - d.rank,
+                              itemStyle: {
+                                color: d.rank <= 10
+                                  ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#059669' }] }
+                                  : d.rank <= 30
+                                    ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#fbbf24' }, { offset: 1, color: '#d97706' }] }
+                                    : { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#f87171' }, { offset: 1, color: '#dc2626' }] }
+                              }
+                            })),
+                        markLine: {
+                          silent: true,
+                          symbol: "none",
+                          label: { formatter: "{b}", position: "end", fontSize: 9, fontFamily: "Inter, sans-serif" },
+                          lineStyle: { type: "dashed", width: 1 },
+                          data: chart1Mode === "score"
+                            ? [
+                                { yAxis: 80, name: "Kuat", lineStyle: { color: "#10b981" } },
+                                { yAxis: 60, name: "Cukup", lineStyle: { color: "#f59e0b" } }
+                              ]
+                            : [
+                                { yAxis: 31, name: "Top 10", lineStyle: { color: "#10b981" } },
+                                { yAxis: 11, name: "Top 30", lineStyle: { color: "#f59e0b" } }
+                              ]
+                        }
+                      }
+                    ]
+                  }}
+                />
+              </div>
+            </div>
 
           </div>
         </div>
@@ -1139,6 +1672,51 @@ function ResultPage() {
               >
                 Ya, Ulangi & Hapus
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 animate-in fade-in-0">
+          <div className="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl flex flex-col gap-6 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowShareModal(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="flex flex-col gap-1.5 text-center items-center">
+              <div className="p-3 bg-primary/10 rounded-full text-primary mb-2">
+                <Share2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-heading font-semibold text-xl text-foreground">
+                Bagikan Hasil Penilaian
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Scan QR Code atau salin tautan di bawah untuk membagikan hasil penilaian Anda secara langsung.
+              </p>
+            </div>
+
+            <div className="flex justify-center p-4 bg-white rounded-xl border border-border mx-auto">
+              <QRCodeSVG value={shareUrl} size={180} />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-mono uppercase font-semibold text-muted-foreground ml-1">Tautan Publik</span>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={shareUrl} 
+                  className="flex-1 bg-secondary text-xs rounded-md px-3 py-2.5 border border-border outline-none text-muted-foreground font-mono truncate"
+                />
+                <Button onClick={copyToClipboard} size="sm" className="shrink-0 flex items-center gap-1.5 cursor-pointer">
+                  {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {isCopied ? "Tersalin" : "Salin"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
