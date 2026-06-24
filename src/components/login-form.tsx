@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 import { toast } from "sonner"
+import { login } from "@/lib/auth"
 
 export function LoginForm({
   className,
@@ -30,8 +31,8 @@ export function LoginForm({
     setIsLoading(true)
 
     const correctPassword = import.meta.env.VITE_LOGIN_PASSWORD
-
     if (password === correctPassword) {
+      login()
       toast.success("Login successful")
       navigate({ to: "/dashboard" })
     } else {
