@@ -13,3 +13,6 @@ todos.json
 
 # typescript
 *.tsbuildinfo
+
+# test artifacts
+test-results/
