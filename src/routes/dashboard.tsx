@@ -5,6 +5,7 @@ import { SiteHeader } from '@/components/site-header'
 import { ChartAreaInteractive } from '@/components/chart-area-interactive'
 import { SectionCards } from '@/components/section-cards'
 import { DataTable } from '@/components/data-table'
+import tableData from '@/app/dashboard/data.json'
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: () => {
     const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true'
@@ -24,7 +25,7 @@ function DashboardPage() {
         <div className="flex flex-1 flex-col gap-4 p-4">
           <ChartAreaInteractive />
           <SectionCards />
-          <DataTable />
+          <DataTable data={tableData} />
         </div>
       </SidebarInset>
     </SidebarProvider>
