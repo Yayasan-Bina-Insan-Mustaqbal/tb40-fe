@@ -567,10 +567,17 @@ function TestWizard() {
 
     if (typeof window !== "undefined") {
       try {
+        const answersCount = Object.keys(newAnswers).length
         posthog.capture("answer_changed", {
           questionId: qIndex,
           answerValue: val,
-          mode: "adaptive"
+          mode: "adaptive",
+          current_answers: newAnswers,
+          answers_count: answersCount,
+          $set: {
+            latest_answers_adaptive: newAnswers,
+            answers_count_adaptive: answersCount
+          }
         })
       } catch (err) {
         console.warn("PostHog tracking failed", err)
@@ -621,10 +628,18 @@ function TestWizard() {
 
     if (typeof window !== "undefined") {
       try {
+        // Rough heuristic for precision answers count (ignoring defaults of 60)
+        const answersCount = newAnswers.filter(a => a !== 60).length
         posthog.capture("answer_changed", {
           questionId: questionIndex + 1,
           answerValue: val,
-          mode: "precision"
+          mode: "precision",
+          current_answers: newAnswers,
+          answers_count: answersCount,
+          $set: {
+            latest_answers_precision: newAnswers,
+            answers_count_precision: answersCount
+          }
         })
       } catch (err) {
         console.warn("PostHog tracking failed", err)
