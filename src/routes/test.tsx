@@ -1,4 +1,5 @@
 import posthog from "posthog-js"
+import LZString from "lz-string"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
@@ -726,15 +727,36 @@ function TestWizard() {
   const submitTest = async () => {
     setIsSubmitting(true)
     setSubmitStep(0)
+    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
+    const parsedAnswers: Record<string, number> = {}
+    for (let i = 1; i <= 40; i++) {
+      parsedAnswers[i.toString()] = answers[i - 1] ?? 60
+    }
+
+    const compactPayload = {
+      u: {
+        nama: { lengkap: userMetadata.nama.lengkap, panggilan: userMetadata.nama.panggilan },
+        usia: userMetadata.usia,
+        lahir: { tanggal: userMetadata.lahir.tanggal },
+        tanggal: userMetadata.tanggal,
+      },
+      a: parsedAnswers,
+      t: type,
+    }
+    const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(compactPayload))
+    const shareUrl = `${window.location.origin}/result?share=${compressed}`
+
     if (typeof window !== "undefined") {
       try {
-        posthog.capture("assessment_submitted", { mode: "precision" })
+        posthog.capture("assessment_submitted", { 
+          mode: "precision",
+          $set: { result_url_precision: shareUrl }
+        })
       } catch (err) {
         console.warn("PostHog tracking failed", err)
       }
     }
 
-    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
     const payload = {
       parts: {
         umum: {
@@ -830,15 +852,36 @@ function TestWizard() {
   const submitV2Test = async () => {
     setIsSubmitting(true)
     setSubmitStep(0)
+    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
+    const parsedAnswers: Record<string, number> = {}
+    for (let i = 1; i <= 40; i++) {
+      parsedAnswers[i.toString()] = v2Answers[i] ?? 60
+    }
+
+    const compactPayload = {
+      u: {
+        nama: { lengkap: userMetadata.nama.lengkap, panggilan: userMetadata.nama.panggilan },
+        usia: userMetadata.usia,
+        lahir: { tanggal: userMetadata.lahir.tanggal },
+        tanggal: userMetadata.tanggal,
+      },
+      a: parsedAnswers,
+      t: type,
+    }
+    const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(compactPayload))
+    const shareUrl = `${window.location.origin}/result?share=${compressed}`
+
     if (typeof window !== "undefined") {
       try {
-        posthog.capture("assessment_submitted", { mode: "adaptive" })
+        posthog.capture("assessment_submitted", { 
+          mode: "adaptive",
+          $set: { result_url_adaptive: shareUrl }
+        })
       } catch (err) {
         console.warn("PostHog tracking failed", err)
       }
     }
 
-    const type = userMetadata.usia < 14 ? "tb40anak" : "tb40"
     // Build ordered array[40] for the v0.1 API: index 0 = q1, index 39 = q40
     const fullAnswers = Array.from(
       { length: 40 },

@@ -4,4 +4,3 @@ test-results
 playwright-report
 playwright/.cache
 .git
-.env*
