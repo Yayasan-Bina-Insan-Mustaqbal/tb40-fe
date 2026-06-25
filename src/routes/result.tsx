@@ -88,7 +88,8 @@ function ResultPage() {
               setUmum(payload.u)
 
               const apiUrl =
-                import.meta.env.VITE_API_URL || "http://localhost:4040"
+                import.meta.env.VITE_API_URL ||
+                (typeof window !== "undefined" ? window.location.origin : "http://localhost:4040")
               const type = payload.t || "tb40"
               const response = await fetch(
                 `${apiUrl}/api/v0.1/${type}/calculation`,
