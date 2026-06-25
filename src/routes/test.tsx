@@ -750,7 +750,7 @@ function TestWizard() {
       try {
         posthog.capture("assessment_submitted", { 
           mode: "precision",
-          $set: { result_url_precision: shareUrl, test_mode: "precision" }
+          $set: { result_url_precision: shareUrl, mode: "precision" }
         })
       } catch (err) {
         console.warn("PostHog tracking failed", err)
@@ -875,7 +875,7 @@ function TestWizard() {
       try {
         posthog.capture("assessment_submitted", { 
           mode: "adaptive",
-          $set: { result_url_adaptive: shareUrl, test_mode: "adaptive" }
+          $set: { result_url_adaptive: shareUrl, mode: "adaptive" }
         })
       } catch (err) {
         console.warn("PostHog tracking failed", err)
