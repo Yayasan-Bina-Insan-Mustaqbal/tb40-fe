@@ -34,10 +34,12 @@ test.describe("TB40 Frontend E2E - Adaptive Assessment (v0.2)", () => {
     await page.waitForTimeout(1000)
 
     // 4. Tier 1 - Energi Sosial (Allocation)
-    // Check if slider exists and set it to 70
-    const slider = page.locator("#socialEnergySlider")
-    await expect(slider).toBeVisible()
-    await slider.fill("70")
+    // Check if slider exists and set it to a value by pressing ArrowRight
+    const sliderThumb = page.locator('[role="slider"]')
+    await expect(sliderThumb).toBeVisible()
+    await sliderThumb.focus()
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.press("ArrowRight")
     await page.waitForTimeout(500)
 
     // Click "Simpan & Lanjut"
@@ -90,9 +92,9 @@ test.describe("TB40 Frontend E2E - Adaptive Assessment (v0.2)", () => {
 
     // Verify results contents
     await expect(
-      page.locator("text=Visualisasi Pemetaan Tafsir Bakat")
+      page.locator("h3:has-text('Ringkasan Karakter & Jiwa')")
     ).toBeVisible()
-    await expect(page.locator("text=Grafik Data Interaktif")).toBeVisible()
+    await expect(page.locator("text=Laporan Analisa Editorial")).toBeVisible()
 
     // Log LocalStorage values to console
     const savedUmum = await page.evaluate(() =>
@@ -118,7 +120,7 @@ test.describe("TB40 Frontend E2E - Adaptive Assessment (v0.2)", () => {
 
     // Check if modal title is visible
     await expect(
-      page.locator('h3:has-text("Bagikan Hasil Penilaian")')
+      page.locator('h2:has-text("Bagikan Hasil Penilaian")')
     ).toBeVisible()
 
     // Check if the QR code container (svg inside bg-card modal) is visible

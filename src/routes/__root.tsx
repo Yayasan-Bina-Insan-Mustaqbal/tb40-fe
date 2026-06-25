@@ -1,4 +1,6 @@
+import posthog from "posthog-js"
 import { PostHogProvider } from "posthog-js/react"
+import { useEffect } from "react"
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -36,6 +38,21 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // PostHog: Identify returning users on app load
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("tb40_umum")
+      if (saved) {
+        const { nama, usia } = JSON.parse(saved)
+        if (nama?.panggilan) {
+          posthog.identify(nama.panggilan, { name: nama.lengkap, age: usia })
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore returning user for PostHog", e)
+    }
+  }, [])
+
   return (
     <html lang="en">
       <head>
@@ -51,7 +68,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               "https://eu.posthog.com",
             person_profiles: "identified_only",
             capture_exceptions: true,
-            debug: import.meta.env.DEV,
+            debug: false,
           }}
         >
           <TooltipProvider delayDuration={300}>

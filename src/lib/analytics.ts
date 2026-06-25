@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/start'
+import { createServerFn } from '@tanstack/react-start'
 
 const ANALYTICS_API_URL = 'http://tb40-analytics:5000'
 

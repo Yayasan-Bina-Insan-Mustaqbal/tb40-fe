@@ -1,5 +1,6 @@
 import posthog from "posthog-js"
 import { useState, useEffect } from "react"
+import { useFeatureFlagEnabled } from "posthog-js/react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +33,17 @@ function LandingPage() {
   >("checking")
   const [apiType, setApiType] = useState<"live" | "mock">("live")
   const [apiUrl, setApiUrl] = useState("https://tb40.insanmustaqbal.or.id")
-  const [testMode, setTestMode] = useState<"adaptive" | "precision">("adaptive")
+  
+  // Feature flag for v0.2 assessment
+  const showV02 = useFeatureFlagEnabled("v0.2-assessment")
+  const [testMode, setTestMode] = useState<"adaptive" | "precision">("precision")
+
+  // Update testMode if feature flag is enabled
+  useEffect(() => {
+    if (showV02 !== undefined) {
+      setTestMode(showV02 ? "adaptive" : "precision")
+    }
+  }, [showV02])
 
   // Check connectivity to the live API (probe local API first)
   useEffect(() => {
@@ -53,10 +64,7 @@ function LandingPage() {
           return
         }
       } catch (err) {
-        console.warn(
-          "Failed to reach local API on port 4040, probing production API...",
-          err
-        )
+        // Try production server
       }
 
       try {
@@ -77,10 +85,6 @@ function LandingPage() {
         }
       } catch (err) {
         clearTimeout(timeoutId)
-        console.warn(
-          "Failed to reach live API server. Falling back to local mockup sandbox.",
-          err
-        )
         setServerStatus("offline")
         setApiType("mock")
         setApiUrl("")
@@ -387,7 +391,7 @@ function LandingPage() {
             </div>
 
             {/* Test Mode input */}
-            <div className="mt-1 flex flex-col gap-2 rounded-xl border border-border bg-background p-3">
+            <div className={`mt-1 flex flex-col gap-2 rounded-xl border border-border bg-background p-3 ${showV02 === false ? 'hidden' : ''}`}>
               <Label className="text-xs font-semibold tracking-wider text-foreground uppercase select-none">
                 Pilih Metode Penilaian
               </Label>

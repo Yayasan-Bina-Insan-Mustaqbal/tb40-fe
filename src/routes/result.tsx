@@ -45,10 +45,6 @@ function ResultPage() {
   const [tb40ResultRanked, setTb40ResultRanked] = useState<any>(null)
   const [tb40Presentation, setTb40Presentation] = useState<any>(null)
 
-  // v0.2 States
-  const [isV2, setIsV2] = useState(false)
-  const [v2Result, setV2Result] = useState<any>(null)
-
   // UI State
   const [activeSection, setActiveSection] = useState("ringkasan")
   const [isCalculating, setIsCalculating] = useState(false)
@@ -120,7 +116,6 @@ function ResultPage() {
               setTb40Presentation(
                 tb40Data.tb40Presentation || tb40Data.presentation
               )
-              setIsV2(false)
 
               localStorage.setItem("tb40_umum", JSON.stringify(payload.u))
               if (typeof window !== "undefined") {
@@ -163,23 +158,12 @@ function ResultPage() {
 
         setUmum(parsedUmum)
 
-        if (
-          parsedResult.version === "v0.2" &&
-          parsedResult.status === "complete" &&
-          parsedResult.result &&
-          !parsedResult.parts
-        ) {
-          setIsV2(true)
-          setV2Result(parsedResult.result)
-        } else {
-          setIsV2(false)
-          const tb40Data = parsedResult.parts?.tb40 || parsedResult
-          setTb40Result(tb40Data.tb40Result || tb40Data.result)
-          setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
-          setTb40Presentation(
-            tb40Data.tb40Presentation || tb40Data.presentation
-          )
-        }
+        const tb40Data = parsedResult.parts?.tb40 || parsedResult.parts?.tb40anak || parsedResult
+        setTb40Result(tb40Data.tb40Result || tb40Data.result)
+        setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
+        setTb40Presentation(
+          tb40Data.tb40Presentation || tb40Data.presentation
+        )
 
         if (typeof window !== "undefined") {
           try {
@@ -238,7 +222,7 @@ function ResultPage() {
     )
   }
 
-  if (!umum || (!tb40Result && !v2Result)) return null
+  if (!umum || !tb40Result) return null
 
   const handleShare = () => {
     console.log("handleShare called!")
@@ -307,319 +291,6 @@ function ResultPage() {
     localStorage.removeItem("tb40_answers_v2")
     localStorage.removeItem("tb40_result")
     navigate({ to: "/" as any })
-  }
-
-  if (isV2 && v2Result) {
-    const savedAnswersV2 = localStorage.getItem("tb40_answers_v2")
-    const answersV2 = savedAnswersV2 ? JSON.parse(savedAnswersV2) : null
-
-    const handleUpgradeToPrecision = () => {
-      try {
-        posthog.capture("upgrade_to_precision_clicked")
-      } catch (err) {
-        console.warn("PostHog tracking failed", err)
-      }
-      const updatedUmum = {
-        ...umum,
-        testMode: "precision",
-        requestPrecision: true,
-      }
-      localStorage.setItem("tb40_umum", JSON.stringify(updatedUmum))
-      navigate({ to: "/test" as any })
-    }
-
-    return (
-      <>
-        <div className="relative flex min-h-screen flex-col bg-background text-foreground print:bg-white print:text-black">
-          <div className="pointer-events-none absolute top-0 left-0 -z-10 h-[600px] w-full bg-gradient-to-b from-primary/5 to-transparent" />
-
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-8 md:px-8">
-            {/* Header Controls */}
-            <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
-              <button
-                onClick={() => navigate({ to: "/test" as any })}
-                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <Undo2 className="h-3.5 w-3.5" /> Kembali Ke Penilaian
-              </button>
-
-              <button
-                onClick={() => setShowResetModal(true)}
-                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Hapus & Ulangi Tes
-              </button>
-            </div>
-
-            {/* Profile Intro */}
-            <div className="mt-2 flex flex-col gap-4">
-              <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Hasil
-                Penilaian Cepat (v0.2)
-              </div>
-              <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-                Tafsir Bakat{" "}
-                <span className="text-primary italic">
-                  {umum.nama.panggilan}
-                </span>
-              </h1>
-              <p className="font-mono text-sm text-muted-foreground">
-                Subjek:{" "}
-                <span className="font-semibold text-foreground">
-                  {umum.nama.lengkap}
-                </span>{" "}
-                &bull; Usia:{" "}
-                <span className="font-semibold text-foreground">
-                  {umum.usia} Tahun
-                </span>{" "}
-                &bull; Tanggal:{" "}
-                <span className="font-semibold text-foreground">
-                  {umum.tanggal}
-                </span>
-              </p>
-            </div>
-
-            {/* Primary Group Banner */}
-            <div className="relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-l-4 border-border border-l-primary bg-card p-6 shadow-sm md:p-8">
-              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
-              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Klaster Kepribadian Utama
-              </span>
-              <h2 className="mt-1 font-heading text-2xl font-semibold text-primary md:text-3xl">
-                {v2Result.primary_group}
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-foreground/90">
-                {v2Result.description}
-              </p>
-            </div>
-
-            {/* Traits Details */}
-            <div className="flex flex-col gap-4">
-              <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-xl font-semibold">
-                <BookOpen className="h-5 w-5 text-primary" /> Rincian Sifat yang
-                Dievaluasi
-              </h3>
-
-              <div className="flex flex-col gap-4">
-                {v2Result.traits.map((p: any) => {
-                  const localScore =
-                    answersV2?.tier_3?.[`q${p.questionIndex}`] ??
-                    answersV2?.tier_3?.[p.pillar?.no || p.questionIndex]
-                  const score = Number(p.score ?? localScore ?? 60)
-                  let ratingBg =
-                    "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                  let ratingBorder = "border-amber-200 dark:border-amber-950/20"
-                  if (score >= 80) {
-                    ratingBg =
-                      "bg-teal-50 text-teal-800 border-teal-200 dark:bg-teal-950/20 dark:text-teal-400 font-semibold"
-                    ratingBorder =
-                      "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
-                  } else if (score >= 60) {
-                    ratingBg =
-                      "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
-                    ratingBorder =
-                      "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
-                  } else if (score <= 40) {
-                    ratingBg =
-                      "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                    ratingBorder =
-                      "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
-                  }
-
-                  return (
-                    <div
-                      key={p.name}
-                      className={`flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-xs transition-all ${ratingBorder}`}
-                    >
-                      <div className="flex items-center justify-between border-b border-border/70 pb-2">
-                        <div className="flex items-baseline gap-2">
-                          <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-primary">
-                            Pilar {p.pillar?.no || p.questionIndex}
-                          </span>
-                          <h4 className="font-heading text-base font-semibold text-foreground">
-                            {p.data?.nama_lengkap || p.name}
-                          </h4>
-                        </div>
-                        <span
-                          className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ratingBg}`}
-                        >
-                          Skor: {score}
-                        </span>
-                      </div>
-
-                      {p.data?.arab && (
-                        <div className="-mt-1 text-right">
-                          <span className="font-arabic font-heading text-xl font-bold text-primary/80">
-                            {p.data.arab}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-[10px] font-semibold text-muted-foreground uppercase">
-                          Definisi Pilar
-                        </span>
-                        <p className="text-xs leading-relaxed text-foreground/90">
-                          {p.data?.definisi || "Belum ada definisi terperinci."}
-                        </p>
-                      </div>
-
-                      {(p.data?.lalai_nama_lengkap ||
-                        p.data?.lebih_nama_lengkap) && (
-                        <div className="mt-2 grid grid-cols-1 gap-4 rounded-xl border border-border/60 bg-secondary/40 p-4 text-xs sm:grid-cols-2">
-                          {p.data?.lalai_nama_lengkap && (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-400">
-                                ⚠️ Potensi Lalai
-                              </span>
-                              <h5 className="font-medium text-foreground">
-                                {p.data.lalai_nama_lengkap}
-                              </h5>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                {p.data.lalai_definisi}
-                              </p>
-                            </div>
-                          )}
-                          {p.data?.lebih_nama_lengkap && (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
-                                ⚠️ Potensi Berlebihan
-                              </span>
-                              <h5 className="font-medium text-foreground">
-                                {p.data.lebih_nama_lengkap}
-                              </h5>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                {p.data.lebih_definisi}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Upgrade CTA Section */}
-            <div className="relative mt-4 flex flex-col items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 text-center md:p-8">
-              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
-              <div className="rounded-full border border-primary/20 bg-primary/10 p-3 text-primary">
-                <Sparkles className="h-8 w-8 animate-pulse" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <h3 className="font-heading text-lg font-semibold text-foreground">
-                  Buka 2 Peta Visual & Laporan Lengkap 40 Pilar
-                </h3>
-                <p className="max-w-lg text-xs leading-relaxed text-muted-foreground">
-                  Penilaian cepat adaptif (v0.2) Anda hanya menguji 3 pilar
-                  spesifik. Dapatkan analisis visual premium yang memetakan
-                  kepribadian lengkap Anda ke dalam 40 Pilar Mulia dengan
-                  melengkapi 37 pertanyaan sisa.
-                </p>
-              </div>
-              <Button
-                onClick={handleUpgradeToPrecision}
-                className="mt-2 flex cursor-pointer items-center gap-2 bg-primary px-6 py-5 font-heading font-semibold shadow-md shadow-primary/25 hover:bg-primary/90"
-              >
-                Lengkapi Penilaian Presisi (Upgrade){" "}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Share Modal */}
-        <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <div className="flex flex-col items-center gap-1.5 text-center">
-                <div className="mb-2 rounded-full bg-primary/10 p-3 text-primary">
-                  <Share2 className="h-6 w-6" />
-                </div>
-                <DialogTitle className="font-heading text-xl font-semibold">
-                  Bagikan Hasil Penilaian
-                </DialogTitle>
-                <DialogDescription className="text-xs leading-relaxed">
-                  Scan QR Code atau salin tautan di bawah untuk membagikan hasil
-                  penilaian Anda secara langsung.
-                </DialogDescription>
-              </div>
-            </DialogHeader>
-
-            <div className="mx-auto flex justify-center rounded-xl border border-border bg-white p-4">
-              <QRCodeSVG value={shareUrl} size={180} />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <span className="ml-1 font-mono text-[10px] font-semibold text-muted-foreground uppercase">
-                Tautan Publik
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={shareUrl}
-                  className="flex-1 truncate rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-xs text-muted-foreground outline-none"
-                />
-                <Button
-                  onClick={copyToClipboard}
-                  size="sm"
-                  className="flex shrink-0 cursor-pointer items-center gap-1.5"
-                >
-                  {isCopied ? (
-                    <Check className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                  {isCopied ? "Tersalin" : "Salin"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Reset / Restart Modal */}
-        <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 animate-bounce rounded-lg border border-destructive/20 bg-destructive/10 p-2 text-destructive">
-                  <AlertTriangle className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col gap-1.5 text-left">
-                  <DialogTitle className="font-heading text-lg font-semibold">
-                    Hapus Data & Mulai Ulang?
-                  </DialogTitle>
-                  <DialogDescription className="text-sm leading-relaxed">
-                    Tindakan ini akan menghapus semua hasil analisis cepat
-                    Anda secara permanen dari perangkat ini.
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
-            <DialogFooter className="mt-2 flex items-center justify-end gap-2.5 border-t border-border pt-4">
-              <Button
-                variant="ghost"
-                type="button"
-                onClick={() => setShowResetModal(false)}
-                className="cursor-pointer border-none py-1.5 text-xs shadow-none hover:bg-muted"
-              >
-                Batal
-              </Button>
-              <Button
-                variant="destructive"
-                type="button"
-                onClick={confirmResetAndRestart}
-                className="text-destructive-foreground cursor-pointer bg-destructive px-4 py-1.5 text-xs font-semibold hover:bg-destructive/90"
-              >
-                Ya, Hapus & Ulangi
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    )
   }
 
   const scoreToColor = (score: number): string => {

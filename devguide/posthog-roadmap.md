@@ -29,7 +29,7 @@ if (saved) {
 }
 ```
 
-- [ ] Add returning user `identify` call
+- [x] Add returning user `identify` call
 - [ ] Test: close browser, reopen, check PostHog person profile merges
 
 ### 2.2 Source Map Upload for Error Tracking
@@ -52,7 +52,7 @@ Registration → Tier 1 → Tier 2 → Tier 3 → Result → Share
 - [ ] Set up alert if completion rate drops below threshold
 
 ### 3.2 Time-to-Complete Analysis
-- [ ] Add `assessment_started` event (timestamp when user enters test page)
+- [x] Add `assessment_started` event (timestamp when user enters test page)
 - [ ] Calculate time from start to submit
 - [ ] Compare v0.1 (precision) vs v0.2 (adaptive) completion times
 
@@ -77,8 +77,8 @@ import { useFeatureFlagEnabled } from 'posthog-js/react'
 
 const showV02 = useFeatureFlagEnabled('v0.2-assessment')
 ```
-- [ ] Create flag `v0.2-assessment` in PostHog
-- [ ] Start with 10% rollout, monitor completion rate
+- [x] Create flag `v0.2-assessment` in PostHog
+- [x] Start with 10% rollout, monitor completion rate
 - [ ] Gradually increase to 100% if metrics hold
 
 ### 4.2 A/B Test: Short vs Long Assessment

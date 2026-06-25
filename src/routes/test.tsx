@@ -1,5 +1,5 @@
 import posthog from "posthog-js"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -254,6 +254,27 @@ function TestWizard() {
       navigate({ to: "/" })
     }
   }, [navigate])
+
+  // Initialize PostHog user identification and fire assessment_started
+  const hasStartedRef = useRef(false)
+  useEffect(() => {
+    if (userMetadata && typeof window !== "undefined") {
+      try {
+        posthog.identify(posthog.get_distinct_id(), {
+          name: userMetadata.nama?.lengkap || userMetadata.nama?.panggilan,
+          age: userMetadata.usia,
+          testMode: testMode,
+        })
+        
+        if (!hasStartedRef.current) {
+          posthog.capture("assessment_started", { test_mode: testMode })
+          hasStartedRef.current = true
+        }
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
+  }, [userMetadata, testMode])
 
   // 2. Fetch questions or v0.2 schema on load
   useEffect(() => {
@@ -543,6 +564,18 @@ function TestWizard() {
     const newAnswers = { ...v2Answers, [qIndex]: val }
     setV2Answers(newAnswers)
     localStorage.setItem("tb40_answers_v2_tier3", JSON.stringify(newAnswers))
+
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("answer_changed", {
+          questionId: qIndex,
+          answerValue: val,
+          mode: "adaptive"
+        })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
   }
 
   // V2 Back Navigation
@@ -585,6 +618,18 @@ function TestWizard() {
     newAnswers[questionIndex] = val
     setAnswers(newAnswers)
     localStorage.setItem("tb40_answers", JSON.stringify(newAnswers))
+
+    if (typeof window !== "undefined") {
+      try {
+        posthog.capture("answer_changed", {
+          questionId: questionIndex + 1,
+          answerValue: val,
+          mode: "precision"
+        })
+      } catch (err) {
+        console.warn("PostHog tracking failed", err)
+      }
+    }
   }
 
   const confirmResetAndRestart = () => {
@@ -709,6 +754,18 @@ function TestWizard() {
 
       localStorage.setItem("tb40_result", JSON.stringify(resultData))
 
+      if (typeof window !== "undefined" && resultData.parts?.[type]) {
+        try {
+          posthog.capture("assessment_result_saved", {
+            mode: "precision",
+            rawScores: resultData.parts[type],
+            percentileScores: resultData.parts[type]
+          })
+        } catch (err) {
+          console.warn("PostHog tracking failed", err)
+        }
+      }
+
       setTimeout(() => {
         setIsSubmitting(false)
         navigate({ to: "/result" as any })
@@ -727,6 +784,18 @@ function TestWizard() {
         }
 
         localStorage.setItem("tb40_result", JSON.stringify(resultData))
+
+        if (typeof window !== "undefined" && resultData.parts?.[type]) {
+          try {
+            posthog.capture("assessment_result_saved", {
+              mode: "precision",
+              rawScores: resultData.parts[type],
+              percentileScores: resultData.parts[type]
+            })
+          } catch (err) {
+            console.warn("PostHog tracking failed", err)
+          }
+        }
 
         setTimeout(() => {
           setIsSubmitting(false)
@@ -793,6 +862,18 @@ function TestWizard() {
 
       localStorage.setItem("tb40_result", JSON.stringify(resultData))
 
+      if (typeof window !== "undefined" && resultData.parts?.[type]) {
+        try {
+          posthog.capture("assessment_result_saved", {
+            mode: "adaptive",
+            rawScores: resultData.parts[type],
+            percentileScores: resultData.parts[type]
+          })
+        } catch (err) {
+          console.warn("PostHog tracking failed", err)
+        }
+      }
+
       setTimeout(() => {
         setIsSubmitting(false)
         navigate({ to: "/result" as any })
@@ -811,6 +892,18 @@ function TestWizard() {
         }
 
         localStorage.setItem("tb40_result", JSON.stringify(resultData))
+
+        if (typeof window !== "undefined" && resultData.parts?.[type]) {
+          try {
+            posthog.capture("assessment_result_saved", {
+              mode: "adaptive",
+              rawScores: resultData.parts[type],
+              percentileScores: resultData.parts[type]
+            })
+          } catch (err) {
+            console.warn("PostHog tracking failed", err)
+          }
+        }
 
         setTimeout(() => {
           setIsSubmitting(false)
