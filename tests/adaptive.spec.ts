@@ -62,6 +62,12 @@ test.describe("TB40 Frontend E2E - Adaptive Assessment (v0.2)", () => {
     // 6. Tier 3 - Evaluasi 40 Pilar (Pagination Pages 1 to 5)
     // Page 1
     await expect(page.locator("text=Halaman 1 / 5")).toBeVisible()
+    // Move the first slider to trigger answer_changed
+    const firstSlider = page.locator('[role="slider"]').first()
+    await firstSlider.focus()
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.press("ArrowRight")
+    await page.waitForTimeout(500)
     await page.click('button:has-text("Lanjut")')
     await page.waitForTimeout(500)
 
