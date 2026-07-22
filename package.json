@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3030",
-    "build": "vinxi build",
-    "start": "vinxi start",
+    "build": "vite build",
+    "start": "srvx serve --entry ./dist/server/server.js --static ./dist/client --prod",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint",
