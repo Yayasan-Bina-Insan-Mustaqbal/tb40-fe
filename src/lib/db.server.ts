@@ -3,7 +3,8 @@ import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 
-const DB_PATH = path.resolve(process.cwd(), 'analytics.db')
+const dbDir = process.env.DATA_DIR || process.cwd()
+const DB_PATH = path.resolve(dbDir, 'analytics.db')
 
 export const db = new Database(DB_PATH)
 
