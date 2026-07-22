@@ -29,6 +29,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
+# Symlink public directory to dist/client so srvx serves static files by default
+RUN ln -s /app/dist/client /app/public
+
 # Expose port
 EXPOSE 3030
 
