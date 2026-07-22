@@ -24,13 +24,15 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy built outputs from builder
-COPY --from=builder /app/dist ./dist
+# Copy server code
+COPY --from=builder /app/dist/server ./dist/server
+
+# Copy client assets to public folder so srvx serves them natively
+COPY --from=builder /app/dist/client ./public
+
+# Copy packages
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
-
-# Symlink public directory to dist/client so srvx serves static files by default
-RUN ln -s /app/dist/client /app/public
 
 # Expose port
 EXPOSE 3030
