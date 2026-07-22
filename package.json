@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite dev --port 3030",
     "build": "vite build",
+    "start": "vinxi start",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint",
