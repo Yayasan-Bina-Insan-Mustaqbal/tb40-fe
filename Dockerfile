@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install build tools for native compilation (better-sqlite3 / bcrypt) and pnpm
+RUN apk add --no-cache python3 make g++ && npm install -g pnpm
 
 WORKDIR /app
 
