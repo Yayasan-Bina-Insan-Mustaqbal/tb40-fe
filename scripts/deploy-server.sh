@@ -40,7 +40,7 @@ fi
 
 # Build Docker image
 echo "Building Docker image (this may take a few minutes)..."
-docker build -t tb40-app:latest .
+docker build --no-cache -t tb40-app:latest .
 
 # Run container with persistent volume for SQLite db
 echo "Starting container on port $PORT..."
