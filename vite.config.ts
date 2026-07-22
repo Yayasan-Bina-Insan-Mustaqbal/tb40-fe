@@ -15,19 +15,19 @@ const config = defineConfig({
       "/ingest/static": {
         target: "https://eu-assets.i.posthog.com",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ""),
+        rewrite: (p) => p.replace(/^\/ingest/, ""),
         secure: false,
       },
       "/ingest/array": {
         target: "https://eu-assets.i.posthog.com",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ""),
+        rewrite: (p) => p.replace(/^\/ingest/, ""),
         secure: false,
       },
       "/ingest": {
         target: "https://eu.i.posthog.com",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ""),
+        rewrite: (p) => p.replace(/^\/ingest/, ""),
         secure: false,
       },
     },
