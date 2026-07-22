@@ -33,4 +33,4 @@ COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3030
 
 # Start SSR server using package start script
-CMD ["pnpm", "start", "--port", "3030", "--host"]
+CMD ["pnpm", "start", "--port", "3030", "--host", "0.0.0.0"]
