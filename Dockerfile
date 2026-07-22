@@ -24,8 +24,9 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy built output from builder
+# Copy built outputs from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
