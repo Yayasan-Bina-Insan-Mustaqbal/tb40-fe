@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite dev --port 3030",
     "build": "vite build",
-    "start": "srvx serve --entry ./dist/server/server.js --static ./public --prod",
+    "start": "srvx serve --entry ./dist/server/server.js --static /app/public --prod",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint",
