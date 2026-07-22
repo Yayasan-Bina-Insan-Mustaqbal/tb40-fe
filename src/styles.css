@@ -1,0 +1,177 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "react-day-picker/style.css";
+@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/roboto-slab";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    --background: oklch(0.985 0.004 70);
+    --foreground: oklch(0.24 0.01 70);
+    --card: oklch(0.975 0.005 70);
+    --card-foreground: oklch(0.24 0.01 70);
+    --popover: oklch(0.985 0.004 70);
+    --popover-foreground: oklch(0.24 0.01 70);
+    --primary: oklch(0.50 0.04 120);
+    --primary-foreground: oklch(0.985 0.004 70);
+    --secondary: oklch(0.92 0.006 70);
+    --secondary-foreground: oklch(0.28 0.01 70);
+    --muted: oklch(0.94 0.006 70);
+    --muted-foreground: oklch(0.48 0.01 70);
+    --accent: oklch(0.90 0.01 120);
+    --accent-foreground: oklch(0.35 0.04 120);
+    --destructive: oklch(0.55 0.12 35);
+    --destructive-foreground: oklch(0.985 0.004 70);
+    --border: oklch(0.88 0.006 70);
+    --input: oklch(0.88 0.006 70);
+    --ring: oklch(0.50 0.04 120);
+    --chart-1: oklch(0.60 0.06 120);
+    --chart-2: oklch(0.52 0.08 70);
+    --chart-3: oklch(0.65 0.05 45);
+    --chart-4: oklch(0.45 0.08 10);
+    --chart-5: oklch(0.35 0.05 120);
+    --radius: 0.75rem;
+    --sidebar: oklch(0.985 0.004 70);
+    --sidebar-foreground: oklch(0.24 0.01 70);
+    --sidebar-primary: oklch(0.50 0.04 120);
+    --sidebar-primary-foreground: oklch(0.985 0.004 70);
+    --sidebar-accent: oklch(0.90 0.01 120);
+    --sidebar-accent-foreground: oklch(0.35 0.04 120);
+    --sidebar-border: oklch(0.88 0.006 70);
+    --sidebar-ring: oklch(0.50 0.04 120);
+}
+
+.dark {
+    --background: oklch(0.18 0.006 70);
+    --foreground: oklch(0.94 0.006 70);
+    --card: oklch(0.20 0.008 70);
+    --card-foreground: oklch(0.94 0.006 70);
+    --popover: oklch(0.18 0.006 70);
+    --popover-foreground: oklch(0.94 0.006 70);
+    --primary: oklch(0.62 0.05 120);
+    --primary-foreground: oklch(0.18 0.006 70);
+    --secondary: oklch(0.24 0.008 70);
+    --secondary-foreground: oklch(0.94 0.006 70);
+    --muted: oklch(0.24 0.008 70);
+    --muted-foreground: oklch(0.65 0.006 70);
+    --accent: oklch(0.26 0.02 120);
+    --accent-foreground: oklch(0.85 0.04 120);
+    --destructive: oklch(0.55 0.12 35);
+    --destructive-foreground: oklch(0.94 0.006 70);
+    --border: oklch(0.28 0.008 70);
+    --input: oklch(0.28 0.008 70);
+    --ring: oklch(0.62 0.05 120);
+    --sidebar: oklch(0.20 0.008 70);
+    --sidebar-foreground: oklch(0.94 0.006 70);
+    --sidebar-primary: oklch(0.62 0.05 120);
+    --sidebar-primary-foreground: oklch(0.18 0.006 70);
+    --sidebar-accent: oklch(0.26 0.02 120);
+    --sidebar-accent-foreground: oklch(0.85 0.04 120);
+    --sidebar-border: oklch(0.28 0.008 70);
+    --sidebar-ring: oklch(0.62 0.05 120);
+}
+
+@theme inline {
+    --font-sans: 'Manrope Variable', sans-serif;
+    --font-heading: 'Roboto Slab Variable', serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+
+/* Fix react-day-picker v10 dropdown layout */
+.rdp-month_caption {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  height: auto !important;
+}
+
+.rdp-dropdown_root {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+}
+
+.rdp-dropdown_root .rdp-dropdown {
+  opacity: 1 !important;
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  appearance: auto !important;
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0.75rem !important;
+  padding: 0.35rem 1.75rem 0.35rem 0.6rem !important;
+  font-size: 0.825rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  outline: none !important;
+  transition: all 0.2s !important;
+  font-family: inherit !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+.rdp-dropdown_root .rdp-dropdown:hover {
+  border-color: var(--primary) !important;
+  background: var(--muted) !important;
+}
+
+.rdp-dropdown_root .rdp-caption_label,
+.rdp-dropdown_root .rdp-chevron {
+  display: none !important;
+}

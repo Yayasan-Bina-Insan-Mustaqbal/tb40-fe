@@ -1,0 +1,11 @@
+node_modules
+.git
+.github
+dist
+.vinxi
+.output
+test-results
+playwright-report
+screenshots
+*.db
+*.log
