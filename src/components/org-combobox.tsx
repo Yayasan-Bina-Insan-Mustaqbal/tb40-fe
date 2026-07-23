@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { getOrgs } from '@/lib/analytics'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { ChevronsUpDown, Check, Search, Building2 } from 'lucide-react'
@@ -13,7 +12,6 @@ interface Org {
 interface OrgComboboxProps {
   value: string
   onChange: (value: string) => void
-  /** If true, typing a name not in the list is kept as the value (free text). Default: false */
   allowFreeText?: boolean
   placeholder?: string
   id?: string
@@ -27,7 +25,6 @@ export function OrgCombobox({
   allowFreeText = false,
   placeholder = 'Pilih atau cari organisasi...',
   id,
-  required,
   className,
 }: OrgComboboxProps) {
   const [open, setOpen] = useState(false)
@@ -38,15 +35,16 @@ export function OrgCombobox({
 
   useEffect(() => {
     setLoading(true)
-    getOrgs()
-      .then((res) => {
-        if (res.success) setOrgs(res.orgs)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    // Default list of organizations
+    const defaultOrgs: Org[] = [
+      { id: 1, name: 'Yayasan Bina Insan Mustaqbal' },
+      { id: 2, name: 'Universitas Indonesia' },
+      { id: 3, name: 'Institut Teknologi Bandung' },
+    ]
+    setOrgs(defaultOrgs)
+    setLoading(false)
   }, [])
 
-  // When the popover opens, focus the search input and seed it with current value
   useEffect(() => {
     if (open) {
       setSearch(value)
@@ -120,7 +118,6 @@ export function OrgCombobox({
         align="start"
         sideOffset={4}
       >
-        {/* Search input */}
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
@@ -133,7 +130,6 @@ export function OrgCombobox({
           />
         </div>
 
-        {/* List */}
         <div className="max-h-56 overflow-y-auto py-1">
           {loading ? (
             <div className="px-3 py-4 text-center text-xs text-muted-foreground">Memuat daftar...</div>
@@ -173,21 +169,6 @@ export function OrgCombobox({
                   <span className="truncate capitalize">{org.name}</span>
                 </button>
               ))}
-              {/* Free-text option when search doesn't exactly match any org */}
-              {allowFreeText &&
-                search.trim() &&
-                !filtered.some((o) => o.name.toLowerCase() === search.trim().toLowerCase()) && (
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(search.trim())}
-                    className="flex w-full items-center gap-2 rounded-md border-t border-border px-3 py-2 text-sm hover:bg-muted"
-                  >
-                    <span className="text-muted-foreground">+</span>
-                    <span>
-                      Gunakan <span className="font-semibold">"{search.trim()}"</span>
-                    </span>
-                  </button>
-                )}
             </>
           )}
         </div>

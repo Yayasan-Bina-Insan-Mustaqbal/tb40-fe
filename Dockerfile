@@ -1,14 +1,13 @@
 FROM node:20-alpine AS builder
 
-# Install build tools for native compilation (better-sqlite3 / bcrypt) and pnpm
-RUN apk add --no-cache python3 make g++ && npm install -g pnpm
+RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy dependency files
+# Copy dependency manifests
 COPY package.json pnpm-lock.yaml* ./
 
-# Install all dependencies (dev included for build)
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy application files
@@ -17,25 +16,24 @@ COPY . .
 # Build for production
 RUN pnpm build
 
-# Production stage
+# Production runner stage
 FROM node:20-alpine AS runner
 
 RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy server code
+# Copy server build
 COPY --from=builder /app/dist/server ./dist/server
 
-# Copy client assets to public folder so srvx serves them natively
+# Copy static assets to public folder
 COPY --from=builder /app/dist/client ./public
 
-# Copy packages
+# Copy package manifests & node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
-# Expose port
 EXPOSE 3030
 
-# Start SSR server using package start script
+# Start SSR production server
 CMD ["pnpm", "start", "--port", "3030", "--host", "0.0.0.0"]

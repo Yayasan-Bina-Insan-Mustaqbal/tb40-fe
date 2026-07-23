@@ -44,7 +44,7 @@ test.describe("Core Assessment Scenarios", () => {
     await page.screenshot({ path: 'screenshots/scenario-1-precision-result.png', fullPage: true })
   })
 
-  test("Scenario 2 & 3: Interrupted Session & Abandon Test", async ({ page, context }) => {
+  test("Scenario 2 & 3: Interrupted Session & Abandon Test", async ({ page }) => {
     test.setTimeout(120000)
     await page.goto("/")
     await expect(

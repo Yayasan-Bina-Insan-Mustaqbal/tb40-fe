@@ -1,4 +1,3 @@
-import { PostHogProvider } from "posthog-js/react"
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -42,23 +41,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <PostHogProvider
-          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
-          options={{
-            api_host: "/ingest",
-            ui_host:
-              import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
-              "https://eu.posthog.com",
-            person_profiles: "identified_only",
-            capture_exceptions: true,
-            debug: import.meta.env.DEV,
-          }}
-        >
-          <TooltipProvider delayDuration={300}>
-            {children}
-          </TooltipProvider>
-          <Toaster richColors position="top-right" />
-        </PostHogProvider>
+        <TooltipProvider delayDuration={300}>
+          {children}
+        </TooltipProvider>
+        <Toaster richColors position="top-right" />
         <Scripts />
       </body>
     </html>

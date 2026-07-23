@@ -1,93 +1,165 @@
 /**
- * API client for analytics database operations
+ * API client for API TB40 (v0.3 Adaptive Assessment & Persistence Engine)
  */
 
-// In production, connect directly to analytics API container
-// Frontend and analytics API are on same Docker network
-const API_BASE_URL = typeof window === 'undefined' 
-  ? 'http://tb40-analytics:5000' // Server-side: use Docker service name
-  : import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:5000' // Client-side: use env or fallback
+const API_BASE_URL = typeof window === 'undefined'
+  ? process.env.VITE_API_URL || 'http://localhost:4040'
+  : import.meta.env.VITE_API_URL || 'http://localhost:4040'
 
-export type SaveUserData = {
-  sessionId: string
-  name?: string
+export interface SubmissionPayload {
+  is_anonymous?: boolean
+  type?: 'tb40' | 'tb40anak'
+  subject_name?: string
+  birth_date?: string
   age?: number
-  testMode?: 'adaptive' | 'precision'
+  is_observer?: boolean
+  event_id?: string
+  org_id?: string
 }
 
-export type SaveAnswerData = {
-  sessionId: string
-  userId?: number
-  questionId: number
-  answerValue: number
+export interface ProfileUpdatePayload {
+  subject_name: string
+  birth_date?: string
+  age?: number
+  is_observer?: boolean
 }
 
-export type SaveResultData = {
-  sessionId: string
-  userId: number
-  rawScores: Record<string, number>
-  percentileScores: Record<string, number>
-  resultData: unknown
+export interface ContactUpdatePayload {
+  email?: string
+  phone?: string
 }
 
-export async function saveUser(data: SaveUserData): Promise<{ success: boolean; userId?: number; error?: string }> {
+export interface EvaluatePayload {
+  sequence_number: number
+  answers: {
+    tier_1?: { introvert: number; extrovert: number }
+    tier_2?: string[] | { order: string[] }
+    tier_3?: Record<string, number>
+    tier_4?: Record<string, number>
+  }
+  request_precision?: boolean
+}
+
+/**
+ * Initialize a new submission session (Anonymous or Profiled)
+ */
+export async function createSubmission(payload: SubmissionPayload = { is_anonymous: true }) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/user`, {
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'saveUser', ...data }),
+      body: JSON.stringify(payload),
     })
-    return await response.json()
+    return await res.json()
   } catch (error) {
-    console.error('Failed to save user:', error)
-    return { success: false, error: 'Network error' }
+    console.error('Failed to create submission:', error)
+    return { success: false, error: 'Network connection failed' }
   }
 }
 
-export async function saveAnswer(data: SaveAnswerData): Promise<{ success: boolean; error?: string }> {
+/**
+ * Fetch a submission state by ID
+ */
+export async function getSubmission(submissionId: string) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/user`, {
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/submissions/${encodeURIComponent(submissionId)}`)
+    return await res.json()
+  } catch (error) {
+    console.error(`Failed to fetch submission ${submissionId}:`, error)
+    return { success: false, error: 'Network connection failed' }
+  }
+}
+
+/**
+ * Debounced step evaluation & auto-save
+ */
+export async function evaluateStep(submissionId: string, payload: EvaluatePayload) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/submissions/${encodeURIComponent(submissionId)}/evaluate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'saveAnswer', ...data }),
+      body: JSON.stringify(payload),
     })
-    return await response.json()
+    return await res.json()
   } catch (error) {
-    console.error('Failed to save answer:', error)
-    return { success: false, error: 'Network error' }
+    console.error(`Failed to evaluate step for ${submissionId}:`, error)
+    return { success: false, error: 'Network connection failed' }
   }
 }
 
-export async function saveResult(data: SaveResultData): Promise<{ success: boolean; error?: string }> {
+/**
+ * Update profile details (Unlocking Tier 3)
+ */
+export async function updateProfile(submissionId: string, payload: ProfileUpdatePayload) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/user`, {
-      method: 'POST',
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/submissions/${encodeURIComponent(submissionId)}/profile`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'saveResult', ...data }),
+      body: JSON.stringify(payload),
     })
-    return await response.json()
+    return await res.json()
   } catch (error) {
-    console.error('Failed to save result:', error)
-    return { success: false, error: 'Network error' }
+    console.error(`Failed to update profile for ${submissionId}:`, error)
+    return { success: false, error: 'Network connection failed' }
   }
 }
 
-export async function getUserData(sessionId: string) {
+/**
+ * Post-report contact info enrichment
+ */
+export async function updateContact(submissionId: string, payload: ContactUpdatePayload) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/user?sessionId=${encodeURIComponent(sessionId)}`)
-    return await response.json()
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/submissions/${encodeURIComponent(submissionId)}/contact`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    return await res.json()
   } catch (error) {
-    console.error('Failed to get user data:', error)
-    return { success: false, error: 'Network error' }
+    console.error(`Failed to update contact for ${submissionId}:`, error)
+    return { success: false, error: 'Network connection failed' }
   }
 }
 
-export async function getAnalytics() {
+/**
+ * Fetch public share result payload
+ */
+export async function getShareResult(submissionId: string) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/analytics`)
-    return await response.json()
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/submissions/${encodeURIComponent(submissionId)}/share`)
+    return await res.json()
   } catch (error) {
-    console.error('Failed to get analytics:', error)
-    return { success: false, error: 'Network error' }
+    console.error(`Failed to fetch share result for ${submissionId}:`, error)
+    return { success: false, error: 'Network connection failed' }
+  }
+}
+
+/**
+ * Fetch dynamic question schema for assessment version
+ */
+export async function getSchema(type: 'tb40' | 'tb40anak' = 'tb40', isObserver: boolean = false, subjectName: string = '') {
+  try {
+    const url = new URL(`${API_BASE_URL}/api/v0.3/${type}/schema`)
+    if (isObserver) url.searchParams.set('is_observer', 'true')
+    if (subjectName) url.searchParams.set('subject_name', subjectName)
+
+    const res = await fetch(url.toString())
+    return await res.json()
+  } catch (error) {
+    console.error(`Failed to fetch schema for ${type}:`, error)
+    return { success: false, error: 'Network connection failed' }
+  }
+}
+
+/**
+ * Event admin batch export of all submissions for an event
+ */
+export async function getEventSubmissions(eventId: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v0.3/events/${encodeURIComponent(eventId)}/submissions`)
+    return await res.json()
+  } catch (error) {
+    console.error(`Failed to fetch submissions for event ${eventId}:`, error)
+    return { success: false, error: 'Network connection failed' }
   }
 }

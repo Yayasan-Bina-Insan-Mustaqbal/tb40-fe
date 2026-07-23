@@ -10,21 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as ResultRouteImport } from './routes/result'
 import { Route as TestRouteImport } from './routes/test'
-import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminCohortRouteImport } from './routes/admin.cohort'
-import { Route as AdminRegisterRouteImport } from './routes/admin.register'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResultRoute = ResultRouteImport.update({
@@ -37,88 +29,44 @@ const TestRoute = TestRouteImport.update({
   path: '/test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminCohortRoute = AdminCohortRouteImport.update({
   id: '/admin/cohort',
   path: '/admin/cohort',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRegisterRoute = AdminRegisterRouteImport.update({
-  id: '/admin/register',
-  path: '/admin/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
   '/result': typeof ResultRoute
   '/test': typeof TestRoute
   '/admin/cohort': typeof AdminCohortRoute
-  '/admin/register': typeof AdminRegisterRoute
-  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
   '/result': typeof ResultRoute
   '/test': typeof TestRoute
   '/admin/cohort': typeof AdminCohortRoute
-  '/admin/register': typeof AdminRegisterRoute
-  '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
   '/result': typeof ResultRoute
   '/test': typeof TestRoute
   '/admin/cohort': typeof AdminCohortRoute
-  '/admin/register': typeof AdminRegisterRoute
-  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/login'
-    | '/result'
-    | '/test'
-    | '/admin/cohort'
-    | '/admin/register'
-    | '/admin/'
+  fullPaths: '/' | '/result' | '/test' | '/admin/cohort'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/login'
-    | '/result'
-    | '/test'
-    | '/admin/cohort'
-    | '/admin/register'
-    | '/admin'
-  id:
-    | '__root__'
-    | '/'
-    | '/login'
-    | '/result'
-    | '/test'
-    | '/admin/cohort'
-    | '/admin/register'
-    | '/admin/'
+  to: '/' | '/result' | '/test' | '/admin/cohort'
+  id: '__root__' | '/' | '/result' | '/test' | '/admin/cohort'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  LoginRoute: typeof LoginRoute
   ResultRoute: typeof ResultRoute
   TestRoute: typeof TestRoute
   AdminCohortRoute: typeof AdminCohortRoute
-  AdminRegisterRoute: typeof AdminRegisterRoute
-  AdminIndexRoute: typeof AdminIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -128,13 +76,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/result': {
@@ -151,13 +92,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TestRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/': {
-      id: '/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/cohort': {
       id: '/admin/cohort'
       path: '/admin/cohort'
@@ -165,24 +99,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCohortRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/register': {
-      id: '/admin/register'
-      path: '/admin/register'
-      fullPath: '/admin/register'
-      preLoaderRoute: typeof AdminRegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  LoginRoute: LoginRoute,
   ResultRoute: ResultRoute,
   TestRoute: TestRoute,
   AdminCohortRoute: AdminCohortRoute,
-  AdminRegisterRoute: AdminRegisterRoute,
-  AdminIndexRoute: AdminIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,10 +1,8 @@
-import posthog from "posthog-js"
-import { useState, useEffect, useRef } from "react"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import LZString from "lz-string"
-import { QRCodeSVG } from "qrcode.react"
-import { BarChart as EBarChart } from "@devstool/shadcn-echarts"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useMemo } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -12,2645 +10,574 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 import {
   Sparkles,
-  Printer,
-  TrendingUp,
-  Brain,
-  MessageSquare,
-  Search,
-  BookOpen,
-  Heart,
-  Undo2,
-  FileText,
-  HelpCircle,
-  RotateCcw,
-  AlertTriangle,
-  ArrowRight,
   Share2,
   Copy,
-  Check,
-  BarChart2,
-} from "lucide-react"
-import { getUserData } from "@/lib/analytics"
+  CheckCircle2,
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Heart,
+  Briefcase,
+  GraduationCap,
+  ShieldAlert,
+  Loader2,
+  Lock,
+  Printer,
+  Search,
+} from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
+import { toast } from 'sonner'
+import { getSubmission, getShareResult, updateContact } from '@/lib/api-client'
 
-export const Route = createFileRoute("/result")({ component: ResultPage })
+export const Route = createFileRoute('/result')({
+  component: ResultPage,
+  validateSearch: (search: Record<string, unknown>): Record<string, string | undefined> => {
+    return {
+      id: search.id as string | undefined,
+      tier: search.tier as string | undefined,
+      type: search.type as string | undefined,
+      name: search.name as string | undefined,
+      t1: search.t1 as string | undefined,
+      t2: search.t2 as string | undefined,
+      t3: search.t3 as string | undefined,
+      t4: search.t4 as string | undefined,
+      version: search.version as string | undefined,
+    }
+  },
+})
 
 function ResultPage() {
   const navigate = useNavigate()
+  const searchParams = Route.useSearch()
 
-  // Local Data State
-  const [umum, setUmum] = useState<any>(null)
-  const [tb40Result, setTb40Result] = useState<any>(null)
-  const [tb40ResultRanked, setTb40ResultRanked] = useState<any>(null)
-  const [tb40Presentation, setTb40Presentation] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [reportData, setReportData] = useState<any>(null)
+  const [legacyBadge, setLegacyBadge] = useState<string | null>(null)
 
-  // v0.2 States
-  const [isV2, setIsV2] = useState(false)
-  const [v2Result, setV2Result] = useState<any>(null)
+  // QR Code & Share Modal State
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  // UI State
-  const [activeSection, setActiveSection] = useState("ringkasan")
-  const [isCalculating, setIsCalculating] = useState(false)
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [shareUrl, setShareUrl] = useState("")
-  const [isCopied, setIsCopied] = useState(false)
-
-  const [chart1Mode, setChart1Mode] = useState<"score" | "rank">("score")
-  const [chart2Mode, setChart2Mode] = useState<"score" | "rank">("score")
-
-  const [mapTab, setMapTab] = useState<"score" | "rank" | "both">("both")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterBy, setFilterBy] = useState<
-    "all" | "introvert" | "extrovert" | "muthmainnah" | "lawwamah" | "ammarah"
-  >("all")
-  const [sortBy, setSortBy] = useState<"highest" | "lowest" | "alphabetical">(
-    "highest"
-  )
-  const [showResetModal, setShowResetModal] = useState(false)
+  // Data Conflict Resolution State (DB vs URL)
   const [conflictModalOpen, setConflictModalOpen] = useState(false)
-  const [conflictDataUrl, setConflictDataUrl] = useState<any>(null)
-  const [conflictDataDb, setConflictDataDb] = useState<any>(null)
-  // Error state for when a share/code URL fails to load
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [dbSubmissionData, setDbSubmissionData] = useState<any>(null)
 
-  // Refs for auto-scroll logic
-  const ringkasanRef = useRef<HTMLDivElement>(null)
-  const pemetaanRef = useRef<HTMLDivElement>(null)
-  const chartsRef = useRef<HTMLDivElement>(null)
-  const gayaRef = useRef<HTMLDivElement>(null)
-  const rincianRef = useRef<HTMLDivElement>(null)
+  // Tier 2 Contact Lock State
+  const [contactModalOpen, setContactModalOpen] = useState(false)
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [contactSaving, setContactSaving] = useState(false)
 
-  const applyResult = (resultData: any, umumData: any, isShared: boolean = false) => {
-    setUmum(umumData)
-    if (
-      resultData.version === "v0.2" &&
-      resultData.status === "complete" &&
-      resultData.result &&
-      !resultData.parts
-    ) {
-      setIsV2(true)
-      setV2Result(resultData.result)
-    } else {
-      setIsV2(false)
-      const tb40Data = resultData.parts?.tb40 || resultData.parts?.tb40anak || resultData
-      setTb40Result(tb40Data.tb40Result || tb40Data.result)
-      setTb40ResultRanked(tb40Data.tb40ResultRanked || tb40Data.ranked)
-      setTb40Presentation(tb40Data.tb40Presentation || tb40Data.presentation)
+  // Active Session Resume State
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+
+  // Parse URL search parameters & load report data
+  useEffect(() => {
+    async function loadReport() {
+      setLoading(true)
+
+      // Check active local session for resume banner
+      const localActiveId = localStorage.getItem('tb40_active_submission_id')
+      if (localActiveId && localActiveId !== searchParams.id) {
+        setActiveSessionId(localActiveId)
+      }
+
+      // Check legacy v0.1 / v0.2 URL version detection
+      if (searchParams.version === 'v0.1' || searchParams.version === '1') {
+        setLegacyBadge('Versi v0.1 (40 Pilar)')
+      } else if (searchParams.version === 'v0.2' || searchParams.version === '2') {
+        setLegacyBadge('Versi v0.2 (Adaptif)')
+      }
+
+      // Case 1: ID is provided in URL
+      if (searchParams.id) {
+        try {
+          const res = await getShareResult(searchParams.id)
+          if (res && (res.result || res.status)) {
+            setReportData(res)
+
+            // Check if query params scores differ from DB version (Conflict detection)
+            if (searchParams.t3 && res.halfway_report?.completion_percentage) {
+              setDbSubmissionData(res)
+              // If query params are shorter than DB completion, offer conflict resolution
+              if (res.halfway_report.completion_percentage > 50 && searchParams.tier === '2') {
+                setConflictModalOpen(true)
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Share result API fetch failed, falling back to URL parameters:', err)
+        }
+      }
+
+      // Case 2: Fallback to local active session if no ID or API failed
+      if (!reportData && localActiveId) {
+        try {
+          const res = await getSubmission(localActiveId)
+          if (res && res.id) {
+            setReportData(res)
+          }
+        } catch (err) {
+          console.warn('Local session load failed:', err)
+        }
+      }
+
+      setLoading(false)
     }
 
-    localStorage.setItem("tb40_umum", JSON.stringify(umumData))
-    localStorage.setItem("tb40_result", JSON.stringify(resultData))
-    setIsCalculating(false)
-    window.history.replaceState({}, document.title, window.location.pathname)
+    loadReport()
+  }, [searchParams])
+
+  // Subject Name Fallback ("Anda" for tb40, "Kamu" for tb40anak)
+  const displaySubjectName = useMemo(() => {
+    if (searchParams.name && searchParams.name.trim() !== '') return searchParams.name.trim()
+    if (reportData?.subject_name && reportData.subject_name.trim() !== '') return reportData.subject_name.trim()
+    const isChild = searchParams.type === 'tb40anak' || reportData?.type === 'tb40anak'
+    return isChild ? 'Kamu' : 'Anda'
+  }, [searchParams, reportData])
+
+  // Current Tier Level
+  const currentTier = searchParams.tier || reportData?.current_tier || '3'
+
+  // Generate Explicit Shorthand Share URL for current tier
+  const currentShareUrl = useMemo(() => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tb40.insanmustaqbal.or.id'
+    const url = new URL(`${origin}/result`)
     
-    if (typeof window !== "undefined") {
-      try {
-        posthog.capture("result_viewed", {
-          shared: isShared,
-          test_mode: resultData.version === "v0.2" ? "adaptive" : "precision",
-        })
-      } catch (err) {
-        console.warn("PostHog tracking failed", err)
+    if (reportData?.id || searchParams.id) {
+      url.searchParams.set('id', reportData?.id || searchParams.id!)
+    }
+    url.searchParams.set('tier', String(currentTier).replace('tier_', ''))
+    url.searchParams.set('type', searchParams.type || reportData?.type || 'tb40')
+    if (displaySubjectName !== 'Anda' && displaySubjectName !== 'Kamu') {
+      url.searchParams.set('name', displaySubjectName)
+    }
+    if (searchParams.t1) url.searchParams.set('t1', searchParams.t1)
+    if (searchParams.t2) url.searchParams.set('t2', searchParams.t2)
+    if (searchParams.t3) url.searchParams.set('t3', searchParams.t3)
+    if (searchParams.t4) url.searchParams.set('t4', searchParams.t4)
+
+    return url.toString()
+  }, [reportData, searchParams, currentTier, displaySubjectName])
+
+  // Copy share URL to clipboard
+  const handleCopyShareLink = () => {
+    navigator.clipboard.writeText(currentShareUrl)
+    setCopied(true)
+    toast.success('Link hasil laporan berhasil disalin!')
+    setTimeout(() => setCopied(false), 3000)
+  }
+
+  // Handle Contact Lock Save (Tier 2 Contact Form)
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const targetId = searchParams.id || reportData?.id
+    if (!targetId) return
+    setContactSaving(true)
+    try {
+      const res = await updateContact(targetId, { email: contactEmail, phone: contactPhone })
+      if (res && res.saved) {
+        toast.success('Kontak berhasil disimpan & data aman!')
+        setContactModalOpen(false)
       }
+    } catch (err) {
+      console.error(err)
+      toast.error('Gagal menyimpan kontak.')
+    } finally {
+      setContactSaving(false)
     }
   }
 
-  useEffect(() => {
-    const handleInitialLoad = async () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search)
-        const shareData = urlParams.get("share") || urlParams.get("data")
-        const codeData = urlParams.get("code")
-
-        let dbResult: any = null
-        let dbUmum: any = null
-        if (codeData) {
-          try {
-            const res = await getUserData({ data: codeData })
-            if (res.success && res.session?.parsedResults) {
-              dbResult = res.session.parsedResults
-              dbUmum = {
-                nama: {
-                  lengkap: res.session.name || "",
-                  panggilan: res.session.nick_name || "",
-                },
-                usia: res.session.age || 0,
-                testMode: res.session.test_mode || "precision",
-                lahir: { tanggal: "" },
-                tanggal: new Date().toLocaleDateString("id-ID"),
-              }
-              // Restore answers to localStorage so the Share button works
-              // even when this page was opened via a code= link (e.g. admin "Lihat Hasil")
-              if (res.session.parsedAnswers) {
-                try {
-                  localStorage.setItem("tb40_umum", JSON.stringify(dbUmum))
-                  if (res.session.test_mode === "adaptive") {
-                    localStorage.setItem("tb40_answers_v2_tier3", JSON.stringify(res.session.parsedAnswers))
-                  } else {
-                    // Convert { "1": 60, ... } → array[40]
-                    const arr = new Array(40).fill(60)
-                    Object.entries(res.session.parsedAnswers as Record<string, number>).forEach(
-                      ([k, v]) => { arr[parseInt(k) - 1] = v }
-                    )
-                    localStorage.setItem("tb40_answers", JSON.stringify(arr))
-                  }
-                } catch (restoreErr) {
-                  console.warn("Could not restore answers to localStorage", restoreErr)
-                }
-              }
-            }
-          } catch (e) {
-            console.error("Failed to fetch DB result", e)
-          }
-        }
-
-        let urlResult: any = null
-        let urlUmum: any = null
-        if (shareData) {
-          setIsCalculating(true)
-          try {
-            const decompressed = LZString.decompressFromEncodedURIComponent(shareData)
-            if (decompressed) {
-              const payload = JSON.parse(decompressed)
-              urlUmum = payload.u
-              const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4040"
-              const type = payload.t || "tb40"
-              const response = await fetch(`${apiUrl}/api/v0.1/${type}/calculation`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  parts: { umum: payload.u, [type]: payload.a },
-                }),
-              })
-              if (response.ok) {
-                urlResult = await response.json()
-              }
-            }
-          } catch (err) {
-            console.error("Failed to parse shared data", err)
-          }
-        }
-
-        if (urlResult && dbResult) {
-          const urlStr = JSON.stringify(urlResult.parts?.tb40 || urlResult.parts?.tb40anak || urlResult)
-          const dbStr = JSON.stringify(dbResult.parts?.tb40 || dbResult.parts?.tb40anak || dbResult)
-          if (urlStr !== dbStr) {
-            setConflictDataUrl({ result: urlResult, umum: urlUmum })
-            setConflictDataDb({ result: dbResult, umum: dbUmum })
-            setConflictModalOpen(true)
-            setIsCalculating(false)
-            return
-          }
-          applyResult(urlResult, urlUmum, !!shareData)
-        } else if (urlResult) {
-          applyResult(urlResult, urlUmum, !!shareData)
-        } else if (dbResult) {
-          applyResult(dbResult, dbUmum, false)
-        } else {
-          // Fallback to localStorage
-          const savedUmum = localStorage.getItem("tb40_umum")
-          const savedResult = localStorage.getItem("tb40_result")
-          if (!savedUmum || !savedResult) {
-            if (shareData || codeData) {
-              // We had URL params but every source failed — show error instead of silently redirecting
-              setLoadError(
-                shareData
-                  ? "Tautan tidak dapat dimuat. Server perhitungan mungkin tidak tersedia saat ini. Coba buka kembali beberapa saat lagi."
-                  : "Data sesi tidak ditemukan. Tautan mungkin sudah tidak valid."
-              )
-              setIsCalculating(false)
-            } else {
-              navigate({ to: "/" as any })
-            }
-            return
-          }
-          applyResult(JSON.parse(savedResult), JSON.parse(savedUmum), false)
-        }
-      } catch (e) {
-        console.error("Failed to parse results", e)
-        navigate({ to: "/" as any })
-      }
-    }
-
-    handleInitialLoad()
-  }, [navigate])
-
-  // Monitor scroll for floating nav highlights
-  useEffect(() => {
-    const handleScroll = () => {
-      const sections = [
-        { id: "ringkasan", ref: ringkasanRef },
-        { id: "pemetaan", ref: pemetaanRef },
-        { id: "charts", ref: chartsRef },
-        { id: "gaya", ref: gayaRef },
-        { id: "rincian", ref: rincianRef },
-      ]
-
-      for (const section of sections) {
-        if (section.ref.current) {
-          const rect = section.ref.current.getBoundingClientRect()
-          if (rect.top >= 0 && rect.top <= 300) {
-            setActiveSection(section.id)
-            break
-          }
-        }
-      }
-    }
-
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
+  // Career & Education Compilation Recommendations based on traits
+  const careerRecommendations = useMemo(() => {
+    return [
+      { role: 'Manajer Operasional & Eksekutor Proyek', desc: 'Cocok dengan karakter Karsa tinggi yang menyukai tindakan eksekusi nyata.' },
+      { role: 'Analis Sistem & Konsultan Strategi', desc: 'Cocok dengan kecenderungan Cipta dan analisis logika yang kuat.' },
+      { role: 'Pengembang Sumber Daya Manusia (HRD / Counselor)', desc: 'Cocok dengan kepekaan Rasa dan kemampuan empati pelayanan.' },
+    ]
   }, [])
 
-  if (isCalculating) {
+  const educationRecommendations = useMemo(() => {
+    return [
+      { major: 'Teknik Industri / Manajemen Operasional', desc: 'Mengoptimalkan bakat pengorganisasian dan penyelesaian tugas.' },
+      { major: 'Ilmu Komputer / Data Science', desc: 'Mengasah kemampuan berpikir kritis dan formulasi gagasan.' },
+      { major: 'Psikologi / Hubungan Masyarakat', desc: 'Mengembangkan kecerdasan interpersonal dan empati sosial.' },
+    ]
+  }, [])
+
+  if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
-        <Sparkles className="h-8 w-8 animate-spin text-primary" />
-        <p className="animate-pulse font-medium text-muted-foreground">
-          Menghitung Hasil Penilaian Anda...
+      <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center justify-center p-4">
+        <Loader2 className="w-10 h-10 text-teal-400 animate-spin mb-4" />
+        <p className="text-slate-400 text-sm font-medium">Memuat Laporan Hasil Bakat...</p>
+      </div>
+    )
+  }
+
+  // EMPTY STATE: If no report data and no search params exist
+  if (!reportData && !searchParams.id && !searchParams.t1) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center justify-center p-4 text-center">
+        <div className="p-4 rounded-full bg-slate-900 border border-slate-800 text-slate-400 mb-4">
+          <Search className="w-10 h-10 text-teal-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-100 mb-2">Laporan Belum Ditemukan</h2>
+        <p className="text-slate-400 text-sm max-w-md mb-8">
+          Anda belum memiliki tes aktif atau ID laporan tidak ditemukan. Silakan mulai tes adaptif baru untuk melihat laporan bakat Anda.
         </p>
-      </div>
-    )
-  }
 
-  if (loadError) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-6 text-center">
-        <div className="rounded-full bg-amber-100 p-4">
-          <AlertTriangle className="h-8 w-8 text-amber-600" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Tautan Tidak Dapat Dimuat</h1>
-          <p className="mt-2 max-w-md text-sm text-muted-foreground">{loadError}</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted"
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md">
+          <Button
+            onClick={() => navigate({ to: '/' })}
+            className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold py-5"
           >
-            Coba Lagi
-          </button>
-          <button
-            onClick={() => navigate({ to: "/" as any })}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            Mulai Tes Dewasa
+          </Button>
+          <Button
+            onClick={() => navigate({ to: '/' })}
+            className="bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-5"
           >
-            Kembali ke Beranda
-          </button>
+            Mulai Tes Anak
+          </Button>
         </div>
       </div>
     )
-  }
-
-  if (!umum || (!tb40Result && !v2Result)) return null
-
-
-  const handleShare = () => {
-    if (typeof window !== "undefined") {
-      try {
-        posthog.capture("share_button_clicked")
-      } catch (err) {
-        console.warn("PostHog tracking failed", err)
-      }
-    }
-    try {
-      const savedUmum = localStorage.getItem("tb40_umum")
-      const savedAnswers =
-        localStorage.getItem("tb40_answers") ||
-        localStorage.getItem("tb40_answers_v2_tier3")
-
-      if (savedUmum && savedAnswers) {
-        // Primary path: build self-contained LZ-compressed share URL
-        let parsedAnswers = JSON.parse(savedAnswers)
-        if (!Array.isArray(parsedAnswers)) {
-          // Ensure it's an array for the API
-          parsedAnswers = Array.from({ length: 40 }).map(
-            (_: unknown, i: number) =>
-              parsedAnswers[i] ||
-              parsedAnswers[`q${i}`] ||
-              parsedAnswers[(i + 1).toString()] ||
-              60
-          )
-        }
-        const parsedUmum = JSON.parse(savedUmum)
-        const compactPayload = { u: parsedUmum, a: parsedAnswers, t: "tb40" }
-        const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(compactPayload))
-        // Include code= as well if it's in the current URL, giving the recipient a DB fallback
-        const urlParams = new URLSearchParams(window.location.search)
-        const codeInUrl = urlParams.get("code")
-        const url = codeInUrl
-          ? `${window.location.origin}/result?code=${codeInUrl}&share=${compressed}`
-          : `${window.location.origin}/result?share=${compressed}`
-        setShareUrl(url)
-        setShowShareModal(true)
-        return
-      }
-
-      // Fallback: localStorage is empty (e.g. page opened via admin code= link).
-      // Produce a DB-backed share URL using the code= param from the current URL.
-      const urlParams = new URLSearchParams(window.location.search)
-      const codeData = urlParams.get("code")
-      if (codeData) {
-        const url = `${window.location.origin}/result?code=${codeData}`
-        setShareUrl(url)
-        setShowShareModal(true)
-        return
-      }
-
-      // Nothing available — should not normally reach here after Fix 1
-      console.error("Share: no answer data in localStorage and no code param in URL")
-    } catch (e) {
-      console.error("Share error", e)
-    }
-  }
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(shareUrl)
-    setIsCopied(true)
-    setTimeout(() => setIsCopied(false), 2000)
-    try {
-      posthog.capture("share_link_copied")
-    } catch (err) {
-      console.warn("PostHog tracking failed", err)
-    }
-  }
-
-  // Confirmation for Reset
-  const confirmResetAndRestart = () => {
-    localStorage.removeItem("tb40_umum")
-    localStorage.removeItem("tb40_answers")
-    localStorage.removeItem("tb40_answers_v2")
-    localStorage.removeItem("tb40_result")
-    navigate({ to: "/" as any })
-  }
-
-  if (isV2 && v2Result) {
-    const savedAnswersV2 = localStorage.getItem("tb40_answers_v2")
-    const answersV2 = savedAnswersV2 ? JSON.parse(savedAnswersV2) : null
-
-    const handleUpgradeToPrecision = () => {
-      try {
-        posthog.capture("upgrade_to_precision_clicked")
-      } catch (err) {
-        console.warn("PostHog tracking failed", err)
-      }
-      const updatedUmum = {
-        ...umum,
-        testMode: "precision",
-        requestPrecision: true,
-      }
-      localStorage.setItem("tb40_umum", JSON.stringify(updatedUmum))
-      navigate({ to: "/test" as any })
-    }
-
-    return (
-      <>
-        <div className="relative flex min-h-screen flex-col bg-background text-foreground print:bg-white print:text-black">
-          <div className="pointer-events-none absolute top-0 left-0 -z-10 h-[600px] w-full bg-gradient-to-b from-primary/5 to-transparent" />
-
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-8 md:px-8">
-            {/* Header Controls */}
-            <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
-              <button
-                onClick={() => navigate({ to: "/test" as any })}
-                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <Undo2 className="h-3.5 w-3.5" /> Kembali Ke Penilaian
-              </button>
-
-              <button
-                onClick={() => setShowResetModal(true)}
-                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Hapus & Ulangi Tes
-              </button>
-            </div>
-
-            {/* Profile Intro */}
-            <div className="mt-2 flex flex-col gap-4">
-              <div className="inline-flex items-center gap-1.5 self-start rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Hasil
-                Penilaian Cepat (v0.2)
-              </div>
-              <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-                Tafsir Bakat{" "}
-                <span className="text-primary italic">
-                  {umum.nama.panggilan}
-                </span>
-              </h1>
-              <p className="font-mono text-sm text-muted-foreground">
-                Subjek:{" "}
-                <span className="font-semibold text-foreground">
-                  {umum.nama.lengkap}
-                </span>{" "}
-                &bull; Usia:{" "}
-                <span className="font-semibold text-foreground">
-                  {umum.usia} Tahun
-                </span>{" "}
-                &bull; Tanggal:{" "}
-                <span className="font-semibold text-foreground">
-                  {umum.tanggal}
-                </span>
-              </p>
-            </div>
-
-            {/* Primary Group Banner */}
-            <div className="relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-l-4 border-border border-l-primary bg-card p-6 shadow-sm md:p-8">
-              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
-              <span className="font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Klaster Kepribadian Utama
-              </span>
-              <h2 className="mt-1 font-heading text-2xl font-semibold text-primary md:text-3xl">
-                {v2Result.primary_group}
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-foreground/90">
-                {v2Result.description}
-              </p>
-            </div>
-
-            {/* Traits Details */}
-            <div className="flex flex-col gap-4">
-              <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-xl font-semibold">
-                <BookOpen className="h-5 w-5 text-primary" /> Rincian Sifat yang
-                Dievaluasi
-              </h3>
-
-              <div className="flex flex-col gap-4">
-                {v2Result.traits.map((p: any) => {
-                  const localScore =
-                    answersV2?.tier_3?.[`q${p.questionIndex}`] ??
-                    answersV2?.tier_3?.[p.pillar?.no || p.questionIndex]
-                  const score = Number(p.score ?? localScore ?? 60)
-                  let ratingBg =
-                    "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                  let ratingBorder = "border-amber-200 dark:border-amber-950/20"
-                  if (score >= 80) {
-                    ratingBg =
-                      "bg-teal-50 text-teal-800 border-teal-200 dark:bg-teal-950/20 dark:text-teal-400 font-semibold"
-                    ratingBorder =
-                      "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
-                  } else if (score >= 60) {
-                    ratingBg =
-                      "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
-                    ratingBorder =
-                      "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
-                  } else if (score <= 40) {
-                    ratingBg =
-                      "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                    ratingBorder =
-                      "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
-                  }
-
-                  return (
-                    <div
-                      key={p.name}
-                      className={`flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-xs transition-all ${ratingBorder}`}
-                    >
-                      <div className="flex items-center justify-between border-b border-border/70 pb-2">
-                        <div className="flex items-baseline gap-2">
-                          <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-primary">
-                            Pilar {p.pillar?.no || p.questionIndex}
-                          </span>
-                          <h4 className="font-heading text-base font-semibold text-foreground">
-                            {p.data?.nama_lengkap || p.name}
-                          </h4>
-                        </div>
-                        <span
-                          className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ratingBg}`}
-                        >
-                          Skor: {score}
-                        </span>
-                      </div>
-
-                      {p.data?.arab && (
-                        <div className="-mt-1 text-right">
-                          <span className="font-arabic font-heading text-xl font-bold text-primary/80">
-                            {p.data.arab}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-[10px] font-semibold text-muted-foreground uppercase">
-                          Definisi Pilar
-                        </span>
-                        <p className="text-xs leading-relaxed text-foreground/90">
-                          {p.data?.definisi || "Belum ada definisi terperinci."}
-                        </p>
-                      </div>
-
-                      {(p.data?.lalai_nama_lengkap ||
-                        p.data?.lebih_nama_lengkap) && (
-                        <div className="mt-2 grid grid-cols-1 gap-4 rounded-xl border border-border/60 bg-secondary/40 p-4 text-xs sm:grid-cols-2">
-                          {p.data?.lalai_nama_lengkap && (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-400">
-                                ⚠️ Potensi Lalai
-                              </span>
-                              <h5 className="font-medium text-foreground">
-                                {p.data.lalai_nama_lengkap}
-                              </h5>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                {p.data.lalai_definisi}
-                              </p>
-                            </div>
-                          )}
-                          {p.data?.lebih_nama_lengkap && (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
-                                ⚠️ Potensi Berlebihan
-                              </span>
-                              <h5 className="font-medium text-foreground">
-                                {p.data.lebih_nama_lengkap}
-                              </h5>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                {p.data.lebih_definisi}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Upgrade CTA Section */}
-            <div className="relative mt-4 flex flex-col items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 text-center md:p-8">
-              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
-              <div className="rounded-full border border-primary/20 bg-primary/10 p-3 text-primary">
-                <Sparkles className="h-8 w-8 animate-pulse" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <h3 className="font-heading text-lg font-semibold text-foreground">
-                  Buka 2 Peta Visual & Laporan Lengkap 40 Pilar
-                </h3>
-                <p className="max-w-lg text-xs leading-relaxed text-muted-foreground">
-                  Penilaian cepat adaptif (v0.2) Anda hanya menguji 3 pilar
-                  spesifik. Dapatkan analisis visual premium yang memetakan
-                  kepribadian lengkap Anda ke dalam 40 Pilar Mulia dengan
-                  melengkapi 37 pertanyaan sisa.
-                </p>
-              </div>
-              <Button
-                onClick={handleUpgradeToPrecision}
-                className="mt-2 flex cursor-pointer items-center gap-2 bg-primary px-6 py-5 font-heading font-semibold shadow-md shadow-primary/25 hover:bg-primary/90"
-              >
-                Lengkapi Penilaian Presisi (Upgrade){" "}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Share Modal */}
-        <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <div className="flex flex-col items-center gap-1.5 text-center">
-                <div className="mb-2 rounded-full bg-primary/10 p-3 text-primary">
-                  <Share2 className="h-6 w-6" />
-                </div>
-                <DialogTitle className="font-heading text-xl font-semibold">
-                  Bagikan Hasil Penilaian
-                </DialogTitle>
-                <DialogDescription className="text-xs leading-relaxed">
-                  Scan QR Code atau salin tautan di bawah untuk membagikan hasil
-                  penilaian Anda secara langsung.
-                </DialogDescription>
-              </div>
-            </DialogHeader>
-
-            <div className="mx-auto flex justify-center rounded-xl border border-border bg-white p-4">
-              <QRCodeSVG value={shareUrl} size={180} />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <span className="ml-1 font-mono text-[10px] font-semibold text-muted-foreground uppercase">
-                Tautan Publik
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={shareUrl}
-                  className="flex-1 truncate rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-xs text-muted-foreground outline-none"
-                />
-                <Button
-                  onClick={copyToClipboard}
-                  size="sm"
-                  className="flex shrink-0 cursor-pointer items-center gap-1.5"
-                >
-                  {isCopied ? (
-                    <Check className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                  {isCopied ? "Tersalin" : "Salin"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Reset / Restart Modal */}
-        <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 animate-bounce rounded-lg border border-destructive/20 bg-destructive/10 p-2 text-destructive">
-                  <AlertTriangle className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col gap-1.5 text-left">
-                  <DialogTitle className="font-heading text-lg font-semibold">
-                    Hapus Data & Mulai Ulang?
-                  </DialogTitle>
-                  <DialogDescription className="text-sm leading-relaxed">
-                    Tindakan ini akan menghapus semua hasil analisis cepat
-                    Anda secara permanen dari perangkat ini.
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
-            <DialogFooter className="mt-2 flex items-center justify-end gap-2.5 border-t border-border pt-4">
-              <Button
-                variant="ghost"
-                type="button"
-                onClick={() => setShowResetModal(false)}
-                className="cursor-pointer border-none py-1.5 text-xs shadow-none hover:bg-muted"
-              >
-                Batal
-              </Button>
-              <Button
-                variant="destructive"
-                type="button"
-                onClick={confirmResetAndRestart}
-                className="text-destructive-foreground cursor-pointer bg-destructive px-4 py-1.5 text-xs font-semibold hover:bg-destructive/90"
-              >
-                Ya, Hapus & Ulangi
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    )
-  }
-
-  const scoreToColor = (score: number): string => {
-    score = Math.max(0, Math.min(100, score))
-    let startColor: number[] = []
-    let endColor: number[] = []
-    let interpolationFactor = 0
-
-    if (score <= 50) {
-      startColor = [191, 64, 64] // Red (#bf4040)
-      endColor = [64, 191, 64] // Green (#40bf40)
-      interpolationFactor = score / 50
-    } else {
-      startColor = [64, 191, 64] // Green (#40bf40)
-      endColor = [64, 64, 191] // Blue (#4040bf)
-      interpolationFactor = (score - 50) / 50
-    }
-
-    const interpolatedColor = startColor.map((channel, i) =>
-      Math.round(channel + (endColor[i] - channel) * interpolationFactor)
-    )
-
-    return `#${interpolatedColor.map((c) => c.toString(16).padStart(2, "0")).join("")}`
-  }
-
-  const rankToColor = (rank: number, lowestRank: number): string => {
-    rank = Math.max(1, Math.min(rank, lowestRank))
-    const score = ((lowestRank - rank) / (lowestRank - 1)) * 100
-    return scoreToColor(score)
-  }
-
-  // Parse inline SVGs and clean up style tags for Tailwind isolation
-  const getCleanSVG = (svgContent: string, mapType: "score" | "rank") => {
-    if (!svgContent) return ""
-
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(svgContent, "image/svg+xml")
-
-      const elements = doc.querySelectorAll("rect, path")
-      elements.forEach((el) => {
-        const id = el.getAttribute("id")
-        if (id && id.includes(".")) {
-          const [group, no] = id.split(".")
-          const groupResult = tb40Result[group]
-          if (groupResult) {
-            const pillar = groupResult.find((p: any) => p.pillar.no === no)
-            if (pillar) {
-              let finalColor = ""
-              if (mapType === "score") {
-                finalColor = scoreToColor(Number(pillar.score))
-              } else {
-                finalColor = rankToColor(
-                  Number(pillar.rank),
-                  groupResult.length
-                )
-              }
-
-              if (group === "2") {
-                finalColor += "aa" // Mapped alpha transparency
-              }
-
-              el.setAttribute("fill", finalColor)
-            }
-          }
-        }
-      })
-
-      // Make all IDs in this SVG unique to prevent page-level ID collisions
-      const allWithId = doc.querySelectorAll("[id]")
-      allWithId.forEach((el) => {
-        const originalId = el.getAttribute("id")
-        if (originalId) {
-          el.setAttribute("id", `${originalId}-${mapType}`)
-        }
-      })
-
-      const serializer = new XMLSerializer()
-      const cleanSvgStr = serializer.serializeToString(doc)
-
-      return cleanSvgStr
-        .replace("<svg", '<svg class="tb40-interactive-svg w-full h-auto" ')
-        .replace(/font-family="[^"]*"/g, 'font-family="inherit"')
-    } catch (e) {
-      console.error("Failed to parse and patch SVG colors", e)
-      return svgContent
-        .replace("<svg", '<svg class="tb40-interactive-svg w-full h-auto" ')
-        .replace(/font-family="[^"]*"/g, 'font-family="inherit"')
-    }
-  }
-
-  // Quick link to smooth scroll
-  const scrollTo = (ref: React.RefObject<HTMLDivElement | null>) => {
-    if (ref.current) {
-      ref.current.scrollIntoView({ behavior: "smooth", block: "start" })
-    }
-  }
-
-  // Handle printing/PDF rendering
-  const handlePrint = () => {
-    if (typeof window !== "undefined") {
-      try {
-        posthog.capture("pdf_printed")
-      } catch (err) {
-        console.warn("PostHog tracking failed", err)
-      }
-    }
-    window.print()
-  }
-
-  // Helper to trace the root category (Group 3) of a pilar
-  const getPillarRoot = (pillar: any): string => {
-    try {
-      const parent18No = pillar.parents?.[0]?.no
-      if (!parent18No) return ""
-
-      const el18 = tb40Result["18"]?.find(
-        (p: any) => p.pillar.no === parent18No
-      )
-      if (!el18) return ""
-
-      const parent6No = el18.parents?.[0]?.no
-      if (!parent6No) return ""
-
-      const el6 = tb40Result["6"]?.find((p: any) => p.pillar.no === parent6No)
-      if (!el6) return ""
-
-      return el6.parents?.find((parent: any) => parent.group === "3")?.no || ""
-    } catch (e) {
-      return ""
-    }
-  }
-
-  // Helper to trace if a pilar in group 40 belongs to Introvert or Extrovert
-  const isIntrovert = (pillar: any): boolean => {
-    try {
-      const parent18No = pillar.parents?.[0]?.no
-      if (!parent18No) return false
-
-      const el18 = tb40Result["18"]?.find(
-        (p: any) => p.pillar.no === parent18No
-      )
-      if (!el18) return false
-
-      const parent6No = el18.parents?.[0]?.no
-      if (!parent6No) return false
-
-      const el6 = tb40Result["6"]?.find((p: any) => p.pillar.no === parent6No)
-      if (!el6) return false
-
-      const parent2No = el6.parents?.find(
-        (parent: any) => parent.group === "2"
-      )?.no
-      return parent2No === "1" // 1 is Introvert, 2 is Extrovert
-    } catch (e) {
-      return false
-    }
-  }
-
-  // Filter and Sort 40 pillars for detailed list
-  const all40Pillars = tb40Result["40"] || []
-  const filteredPillars = all40Pillars
-    .filter((p: any) => {
-      // 1. Search term match
-      const matchesSearch =
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.data?.nama &&
-          p.data.nama.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.data?.definisi &&
-          p.data.definisi.toLowerCase().includes(searchTerm.toLowerCase()))
-
-      if (!matchesSearch) return false
-
-      // 2. Filter match
-      const rootNo = getPillarRoot(p)
-
-      if (filterBy === "introvert") return isIntrovert(p)
-      if (filterBy === "extrovert") return !isIntrovert(p)
-
-      // Lineage mapping: 1: Karsa (Ammarah), 2: Cipta/Akal (Lawwamah), 3: Rasa (Muthmainnah)
-      if (filterBy === "ammarah") return rootNo === "1"
-      if (filterBy === "lawwamah") return rootNo === "2"
-      if (filterBy === "muthmainnah") return rootNo === "3"
-
-      return true
-    })
-    .sort((a: any, b: any) => {
-      if (sortBy === "highest") {
-        return (
-          Number(b.score) - Number(a.score) || Number(a.rank) - Number(b.rank)
-        )
-      }
-      if (sortBy === "lowest") {
-        return (
-          Number(a.score) - Number(b.score) || Number(b.rank) - Number(a.rank)
-        )
-      }
-      if (sortBy === "alphabetical") {
-        const nameA = a.data?.nama_lengkap || a.name
-        const nameB = b.data?.nama_lengkap || b.name
-        return nameA.localeCompare(nameB)
-      }
-      return 0
-    })
-
-  const strengthsList = (tb40Result && tb40Result["6"]) || []
-  const getVal = (no: string) => {
-    const item = strengthsList.find((s: any) => s.pillar?.no === no)
-    if (!item) return 0
-    return chart2Mode === "score"
-      ? Number(item.score ?? 0)
-      : 7 - Number(item.rank ?? 0)
   }
 
   return (
-    <>
-      <div className="relative flex min-h-screen flex-col bg-background text-foreground print:bg-white print:text-black">
-        {/* Dynamic Background Styling */}
-        <div className="pointer-events-none absolute top-0 left-0 -z-10 h-[600px] w-full bg-gradient-to-b from-primary/5 to-transparent print:hidden" />
-
-        {/* FLOATING OUTLINE NAVIGATION DOCK */}
-        <div className="fixed top-1/2 left-6 z-40 hidden -translate-y-1/2 flex-col gap-4 rounded-2xl border border-border bg-card/65 p-4 shadow-lg shadow-stone-200/40 backdrop-blur-md select-none xl:flex print:hidden">
-          <h5 className="border-b border-border/80 pb-1 font-mono text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-            LAPORAN
-          </h5>
-
-          <button
-            onClick={() => scrollTo(ringkasanRef)}
-            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
-              activeSection === "ringkasan"
-                ? "translate-x-1 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+    <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col font-sans selection:bg-teal-500 selection:text-white">
+      
+      {/* Floating Active Session Resume Banner */}
+      {activeSessionId && (
+        <div className="bg-gradient-to-r from-teal-900/60 to-indigo-900/60 border-b border-teal-500/30 px-4 py-2.5 backdrop-blur-md flex items-center justify-between text-xs">
+          <span className="text-teal-200 font-medium">
+            💡 Anda sedang melihat laporan ini. Anda juga memiliki sesi tes yang belum selesai.
+          </span>
+          <Button
+            size="sm"
+            onClick={() => navigate({ to: '/test', search: { id: activeSessionId } })}
+            className="bg-teal-400 text-slate-950 font-bold hover:bg-teal-300 text-xs h-7"
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${activeSection === "ringkasan" ? "bg-primary" : "bg-transparent"}`}
-            />
-            Ringkasan Profil
-          </button>
-
-          <button
-            onClick={() => scrollTo(pemetaanRef)}
-            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
-              activeSection === "pemetaan"
-                ? "translate-x-1 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${activeSection === "pemetaan" ? "bg-primary" : "bg-transparent"}`}
-            />
-            Pemetaan Bakat (SVG)
-          </button>
-
-          <button
-            onClick={() => scrollTo(chartsRef)}
-            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
-              activeSection === "charts"
-                ? "translate-x-1 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${activeSection === "charts" ? "bg-primary" : "bg-transparent"}`}
-            />
-            Grafik Data
-          </button>
-
-          <button
-            onClick={() => scrollTo(gayaRef)}
-            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
-              activeSection === "gaya"
-                ? "translate-x-1 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${activeSection === "gaya" ? "bg-primary" : "bg-transparent"}`}
-            />
-            Belajar & Komunikasi
-          </button>
-
-          <button
-            onClick={() => scrollTo(rincianRef)}
-            className={`flex items-center gap-2 text-left text-xs font-medium transition-all ${
-              activeSection === "rincian"
-                ? "translate-x-1 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${activeSection === "rincian" ? "bg-primary" : "bg-transparent"}`}
-            />
-            Rincian 40 Pilar Sifat
-          </button>
-
-          <hr className="my-1 border-border/80" />
-
-          <div className="flex flex-col gap-2">
-            <Button
-              onClick={handlePrint}
-              variant="outline"
-              size="sm"
-              className="flex cursor-pointer items-center gap-1.5 py-1.5 text-xs"
-            >
-              <Printer className="h-3.5 w-3.5" /> Cetak PDF
-            </Button>
-            <Button
-              onClick={handleShare}
-              variant="default"
-              size="sm"
-              className="flex cursor-pointer items-center gap-1.5 py-1.5 text-xs shadow-sm"
-            >
-              <Share2 className="h-3.5 w-3.5" /> Bagikan Hasil
-            </Button>
-          </div>
+            Lanjutkan Tes Saya <ArrowRight className="w-3.5 h-3.5 ml-1" />
+          </Button>
         </div>
+      )}
 
-        {/* CORE CONTENT LAYOUT */}
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 px-4 py-8 md:px-8 print:px-0 print:py-0">
-          {/* Lapor Header Controls */}
-          <div className="flex items-center justify-between border-b border-border pb-4 print:hidden">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate({ to: "/test" as any })}
-                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <Undo2 className="h-3.5 w-3.5" /> Kembali Ke Penilaian
-              </button>
-              <span className="text-border">|</span>
-              <button
-                onClick={() => setShowResetModal(true)}
-                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Ulangi Tes Dari Awal
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400">
-                Perhitungan Selesai
-              </span>
-              <Button
-                onClick={handlePrint}
-                variant="outline"
-                size="sm"
-                className="flex cursor-pointer items-center gap-1.5 font-heading"
-              >
-                <Printer className="h-4 w-4" /> Cetak PDF
-              </Button>
-              <Button
-                onClick={handleShare}
-                size="sm"
-                className="flex cursor-pointer items-center gap-1.5 font-heading shadow-sm"
-              >
-                <Share2 className="h-4 w-4" /> Bagikan
-              </Button>
-            </div>
-          </div>
-
-          {/* HERO AREA & TYPOGRAPHY HEADER */}
-          <div className="mt-4 flex flex-col gap-4 text-center md:text-left">
-            <div className="inline-flex items-center gap-1.5 self-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary md:self-start">
-              <Sparkles className="h-3.5 w-3.5" /> Laporan Analisa Editorial
-            </div>
-
-            <h1 className="font-heading text-4xl leading-tight font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
-              Tafsir Bakat{" "}
-              <span className="text-primary italic">{umum.nama.panggilan}</span>
+      {/* Header Bar */}
+      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/' })} className="text-slate-400 hover:text-white">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="font-bold text-sm sm:text-base text-slate-200">
+              Laporan Hasil Bakat TB40 — {displaySubjectName}
             </h1>
-
-            <p className="font-mono text-sm text-muted-foreground">
-              Subjek:{" "}
-              <span className="font-semibold text-foreground">
-                {umum.nama.lengkap}
-              </span>{" "}
-              &bull; Usia:{" "}
-              <span className="font-semibold text-foreground">
-                {umum.usia ?? (umum.lahir?.tanggal ? "Terhitung" : "-")} Tahun
-              </span>{" "}
-              &bull; Analisa:{" "}
-              <span className="font-semibold text-foreground">
-                {umum.tanggal}
-              </span>
-            </p>
-
-            {/* Main Character Title Quote Box (Julukan) */}
-            <div className="relative mt-4 overflow-hidden rounded-2xl border border-l-4 border-border border-l-primary bg-card p-6 shadow-sm md:p-8">
-              <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-full bg-primary/5 blur-3xl" />
-              <span className="font-mono text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-                Gelar Kepribadian Anda
-              </span>
-              <h2 className="mt-2 font-heading text-2xl leading-relaxed font-semibold text-foreground md:text-3xl">
-                "{tb40Presentation.julukan.data}"
-              </h2>
-            </div>
-          </div>
-
-          {/* SECTION 1: DETAILED PERSONALITY REPORT */}
-          <div ref={ringkasanRef} className="flex scroll-mt-12 flex-col gap-6">
-            <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-2xl font-semibold">
-              <FileText className="h-5 w-5 text-primary" /> Ringkasan Karakter &
-              Jiwa
-            </h3>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              <div className="flex flex-col gap-4 text-justify text-sm leading-relaxed text-foreground/90 md:col-span-2 md:text-base">
-                {tb40Presentation.kepribadian.data
-                  .split("\n\n")
-                  .map((para: string, idx: number) => (
-                    <p
-                      key={idx}
-                      className="leading-[1.7] first-letter:float-left first-letter:mr-2 first-letter:font-heading first-letter:text-3xl first-letter:font-bold first-letter:text-primary"
-                    >
-                      {para}
-                    </p>
-                  ))}
-              </div>
-
-              {/* Overview Highlights Cards */}
-              <div className="flex flex-col gap-4">
-                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                  <h4 className="flex items-center gap-1.5 border-b border-border pb-2 font-heading text-sm font-medium text-primary">
-                    <Brain className="h-4 w-4" /> Kategori Mental (2 Pilar)
-                  </h4>
-                  <div className="mt-3 flex flex-col gap-3">
-                    {tb40ResultRanked["2"]?.slice(0, 2).map((p: any) => (
-                      <div
-                        key={p.name}
-                        className="flex items-center justify-between text-xs"
-                      >
-                        <span className="font-medium text-foreground">
-                          {p.name}
-                        </span>
-                        <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono font-semibold">
-                          {p.score}% ({p.rank === 1 ? "Dominan" : "Kondisional"}
-                          )
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                  <h4 className="flex items-center gap-1.5 border-b border-border pb-2 font-heading text-sm font-medium text-primary">
-                    <TrendingUp className="h-4 w-4" /> 3 Kekuatan Utama (6
-                    Pilar)
-                  </h4>
-                  <div className="mt-3 flex flex-col gap-3">
-                    {tb40ResultRanked["6"]?.slice(0, 3).map((p: any) => (
-                      <div
-                        key={p.name}
-                        className="flex items-center justify-between text-xs"
-                      >
-                        <span className="font-medium text-foreground">
-                          {p.data?.label || p.name}
-                        </span>
-                        <span className="rounded border border-emerald-100 bg-emerald-50 px-2 py-0.5 font-mono font-bold text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400">
-                          {p.score}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 2: INTERACTIVE SVG MAPS */}
-          <div
-            ref={pemetaanRef}
-            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
-          >
-            <div className="flex flex-col justify-between gap-4 border-b border-border pb-3 md:flex-row md:items-center">
-              <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
-                <TrendingUp className="h-5 w-5 text-primary" /> Visualisasi
-                Pemetaan Tafsir Bakat
-              </h3>
-
-              {/* Elegant Tab Selector */}
-              <div className="flex self-start rounded-full border border-border bg-secondary/80 p-1 shadow-inner md:self-auto print:hidden">
-                <button
-                  type="button"
-                  onClick={() => setMapTab("score")}
-                  className={`cursor-pointer rounded-full px-4 py-1.5 font-heading text-xs font-medium transition-all ${
-                    mapTab === "score"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Skor Saja
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMapTab("rank")}
-                  className={`cursor-pointer rounded-full px-4 py-1.5 font-heading text-xs font-medium transition-all ${
-                    mapTab === "rank"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Rangka Saja
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMapTab("both")}
-                  className={`cursor-pointer rounded-full px-4 py-1.5 font-heading text-xs font-medium transition-all ${
-                    mapTab === "both"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Kedua Peta
-                </button>
-              </div>
-            </div>
-
-            <p className="-mt-2 text-sm leading-relaxed text-muted-foreground">
-              Grafik di bawah ini memetakan kepribadian Anda dalam
-              klaster-klaster khusus. Arahkan kursor / sentuh bagian-bagian
-              grafik untuk melihat representasi visual bakat secara mendalam.
-            </p>
-
-            {/* Conditional Layouts based on mapTab */}
-            <div className="mt-2">
-              {/* SCORE ONLY VIEW */}
-              {mapTab === "score" && (
-                <div className="relative mx-auto flex max-w-2xl flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md transition-all duration-300">
-                  <div className="flex items-center justify-between border-b border-border pb-3">
-                    <h4 className="font-heading text-base font-semibold">
-                      Pemetaan Warna Berdasar Skor
-                    </h4>
-                    <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
-                      SKOR
-                    </span>
-                  </div>
-                  <div
-                    className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] p-2 dark:bg-[#FAF8F5]"
-                    dangerouslySetInnerHTML={{
-                      __html: getCleanSVG(
-                        tb40Presentation.pemetaan_tafsir_bakat.file,
-                        "score"
-                      ),
-                    }}
-                  />
-                  <p className="mt-1 text-center text-[11px] leading-normal text-muted-foreground">
-                    *Warna mewakili tingkat penguasaan: Hijau (Unggul), Kuning
-                    (Seimbang), Merah (Kelemahan).
-                  </p>
-                </div>
+            <p className="text-xs text-slate-400">
+              {legacyBadge ? (
+                <span className="text-amber-400 font-medium">ℹ️ {legacyBadge}</span>
+              ) : (
+                <>Tier {currentTier} • Versi {searchParams.type === 'tb40anak' ? 'Anak' : 'Dewasa'}</>
               )}
-
-              {/* RANK ONLY VIEW */}
-              {mapTab === "rank" && (
-                <div className="relative mx-auto flex max-w-2xl flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md transition-all duration-300">
-                  <div className="flex items-center justify-between border-b border-border pb-3">
-                    <h4 className="font-heading text-base font-semibold">
-                      Pemetaan Berdasar Rangka (Rank)
-                    </h4>
-                    <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
-                      RANK
-                    </span>
-                  </div>
-                  <div
-                    className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] p-2 dark:bg-[#FAF8F5]"
-                    dangerouslySetInnerHTML={{
-                      __html: getCleanSVG(
-                        tb40Presentation.pemetaan_tafsir_bakat_byRank.file,
-                        "rank"
-                      ),
-                    }}
-                  />
-                  <p className="mt-1 text-center text-[11px] leading-normal text-muted-foreground">
-                    *Warna mewakili posisi relatif bakat tersebut dibandingkan
-                    dengan kekuatan bakat Anda yang lain.
-                  </p>
-                </div>
-              )}
-
-              {/* BOTH SIDE-BY-SIDE VIEW (Exactly as before) */}
-              {mapTab === "both" && (
-                <div className="grid grid-cols-1 gap-8 transition-all duration-300 md:grid-cols-2">
-                  {/* Dynamic Map 1: Score Map */}
-                  <div className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-md">
-                    <div className="flex items-center justify-between border-b border-border pb-2">
-                      <h4 className="font-heading text-sm font-semibold">
-                        Pemetaan Warna Berdasar Skor
-                      </h4>
-                      <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
-                        SKOR
-                      </span>
-                    </div>
-                    <div
-                      className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5]"
-                      dangerouslySetInnerHTML={{
-                        __html: getCleanSVG(
-                          tb40Presentation.pemetaan_tafsir_bakat.file,
-                          "score"
-                        ),
-                      }}
-                    />
-                    <p className="mt-1 text-[10px] leading-normal text-muted-foreground">
-                      *Warna mewakili tingkat penguasaan: Hijau (Unggul), Kuning
-                      (Seimbang), Merah (Kelemahan).
-                    </p>
-                  </div>
-
-                  {/* Dynamic Map 2: Rank Map */}
-                  <div className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-md">
-                    <div className="flex items-center justify-between border-b border-border pb-2">
-                      <h4 className="font-heading text-sm font-semibold">
-                        Pemetaan Berdasar Rangka (Rank)
-                      </h4>
-                      <span className="rounded bg-secondary px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground uppercase">
-                        RANK
-                      </span>
-                    </div>
-                    <div
-                      className="tb40-svg-container overflow-hidden rounded-lg bg-[#faf9f6] dark:bg-[#FAF8F5]"
-                      dangerouslySetInnerHTML={{
-                        __html: getCleanSVG(
-                          tb40Presentation.pemetaan_tafsir_bakat_byRank.file,
-                          "rank"
-                        ),
-                      }}
-                    />
-                    <p className="mt-1 text-[10px] leading-normal text-muted-foreground">
-                      *Warna mewakili posisi relatif bakat tersebut dibandingkan
-                      dengan kekuatan bakat Anda yang lain.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 2.5: INTERACTIVE ECHARTS */}
-          <div
-            ref={chartsRef}
-            id="charts"
-            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
-          >
-            <div className="flex flex-col justify-between gap-4 border-b border-border pb-3 md:flex-row md:items-center">
-              <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
-                <BarChart2 className="h-5 w-5 text-primary" /> Grafik Data
-                Interaktif
-              </h3>
-            </div>
-
-            <div className="flex flex-col gap-8">
-              {/* Chart 2: 6 Strengths */}
-              <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <h4 className="font-heading text-base font-semibold">
-                    6 Kekuatan Utama
-                  </h4>
-                  <div className="flex rounded-md border border-border bg-secondary/80 p-0.5 shadow-inner">
-                    <button
-                      onClick={() => setChart2Mode("score")}
-                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart2Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      Skor
-                    </button>
-                    <button
-                      onClick={() => setChart2Mode("rank")}
-                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart2Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      Rank
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full">
-                  <EBarChart
-                    height={400}
-                    option={{
-                      title: [
-                        {
-                          text: "Introvert",
-                          left: "20%",
-                          textStyle: {
-                            fontSize: 13,
-                            fontWeight: "bold",
-                            fontFamily: "Inter, sans-serif",
-                            color: "#4b5563",
-                          },
-                        },
-                        {
-                          text: "Extrovert",
-                          right: "20%",
-                          textStyle: {
-                            fontSize: 13,
-                            fontWeight: "bold",
-                            fontFamily: "Inter, sans-serif",
-                            color: "#4b5563",
-                          },
-                        },
-                      ],
-                      tooltip: {
-                        trigger: "axis",
-                        axisPointer: { type: "shadow" },
-                        formatter: (params: any) => {
-                          let res = ""
-                          params.forEach((p: any) => {
-                            let no = ""
-                            if (p.seriesName === "Introvert") {
-                              if (p.name === "Rasa") no = "3"
-                              else if (p.name === "Cipta") no = "2"
-                              else if (p.name === "Karsa") no = "1"
-                            } else {
-                              if (p.name === "Rasa") no = "6"
-                              else if (p.name === "Cipta") no = "5"
-                              else if (p.name === "Karsa") no = "4"
-                            }
-                            const item = strengthsList.find(
-                              (s: any) => s.pillar?.no === no
-                            )
-                            if (item) {
-                              res += `<b>${p.seriesName} - ${item.name}</b>: ${Number(item.score).toFixed(1)} (Rank ${item.rank})<br/>`
-                            }
-                          })
-                          return res
-                        },
-                      },
-                      grid: [
-                        {
-                          left: "5%",
-                          width: "42%",
-                          bottom: "5%",
-                          top: "18%",
-                          containLabel: true,
-                        },
-                        {
-                          right: "5%",
-                          width: "42%",
-                          bottom: "5%",
-                          top: "18%",
-                          containLabel: true,
-                        },
-                      ],
-                      xAxis: [
-                        {
-                          gridIndex: 0,
-                          type: "value",
-                          inverse: true,
-                          show: false,
-                          max: chart2Mode === "score" ? 100 : 6,
-                          min: 0,
-                        },
-                        {
-                          gridIndex: 1,
-                          type: "value",
-                          inverse: false,
-                          show: false,
-                          max: chart2Mode === "score" ? 100 : 6,
-                          min: 0,
-                        },
-                      ],
-                      yAxis: [
-                        {
-                          gridIndex: 0,
-                          type: "category",
-                          position: "right",
-                          axisLine: { show: false },
-                          axisTick: { show: false },
-                          axisLabel: {
-                            show: true,
-                            fontSize: 12,
-                            fontWeight: "bold",
-                            fontFamily: "Inter, sans-serif",
-                            color: "#6b7280",
-                          },
-                          data: ["Rasa", "Cipta", "Karsa"],
-                        },
-                        {
-                          gridIndex: 1,
-                          type: "category",
-                          position: "left",
-                          axisLine: { show: false },
-                          axisTick: { show: false },
-                          axisLabel: { show: false },
-                          data: ["Rasa", "Cipta", "Karsa"],
-                        },
-                      ],
-                      series: [
-                        {
-                          name: "Introvert",
-                          type: "bar",
-                          xAxisIndex: 0,
-                          yAxisIndex: 0,
-                          barWidth: 22,
-                          markLine: {
-                            silent: true,
-                            symbol: "none",
-                            label: {
-                              formatter: "{b}",
-                              position: "end",
-                              fontSize: 9,
-                              fontFamily: "Inter, sans-serif",
-                            },
-                            lineStyle: { type: "dashed", width: 1 },
-                            data:
-                              chart2Mode === "score"
-                                ? [
-                                    {
-                                      xAxis: 80,
-                                      name: "Kuat",
-                                      lineStyle: { color: "#10b981" },
-                                    },
-                                    {
-                                      xAxis: 60,
-                                      name: "Cukup",
-                                      lineStyle: { color: "#f59e0b" },
-                                    },
-                                  ]
-                                : [
-                                    {
-                                      xAxis: 5,
-                                      name: "Top 2",
-                                      lineStyle: { color: "#10b981" },
-                                    },
-                                    {
-                                      xAxis: 3,
-                                      name: "Top 4",
-                                      lineStyle: { color: "#f59e0b" },
-                                    },
-                                  ],
-                          },
-                          data: [
-                            {
-                              value: getVal("3"),
-                              itemStyle: {
-                                color:
-                                  getVal("3") >= 80
-                                    ? {
-                                        type: "linear",
-                                        x: 0,
-                                        y: 0,
-                                        x2: 1,
-                                        y2: 0,
-                                        colorStops: [
-                                          { offset: 0, color: "#34d399" },
-                                          { offset: 1, color: "#059669" },
-                                        ],
-                                      }
-                                    : getVal("3") >= 60
-                                      ? {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#fbbf24" },
-                                            { offset: 1, color: "#d97706" },
-                                          ],
-                                        }
-                                      : {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#f87171" },
-                                            { offset: 1, color: "#dc2626" },
-                                          ],
-                                        },
-                              },
-                              label: {
-                                show: true,
-                                position: "left",
-                                formatter: () => {
-                                  const item = strengthsList.find(
-                                    (s: any) => s.pillar?.no === "3"
-                                  )
-                                  return item
-                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
-                                    : ""
-                                },
-                                fontFamily: "Inter, sans-serif",
-                                fontSize: 10,
-                                color: "#374151",
-                              },
-                            },
-                            {
-                              value: getVal("2"),
-                              itemStyle: {
-                                color:
-                                  getVal("2") >= 80
-                                    ? {
-                                        type: "linear",
-                                        x: 0,
-                                        y: 0,
-                                        x2: 1,
-                                        y2: 0,
-                                        colorStops: [
-                                          { offset: 0, color: "#34d399" },
-                                          { offset: 1, color: "#059669" },
-                                        ],
-                                      }
-                                    : getVal("2") >= 60
-                                      ? {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#fbbf24" },
-                                            { offset: 1, color: "#d97706" },
-                                          ],
-                                        }
-                                      : {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#f87171" },
-                                            { offset: 1, color: "#dc2626" },
-                                          ],
-                                        },
-                              },
-                              label: {
-                                show: true,
-                                position: "left",
-                                formatter: () => {
-                                  const item = strengthsList.find(
-                                    (s: any) => s.pillar?.no === "2"
-                                  )
-                                  return item
-                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
-                                    : ""
-                                },
-                                fontFamily: "Inter, sans-serif",
-                                fontSize: 10,
-                                color: "#374151",
-                              },
-                            },
-                            {
-                              value: getVal("1"),
-                              itemStyle: {
-                                color:
-                                  getVal("1") >= 80
-                                    ? {
-                                        type: "linear",
-                                        x: 0,
-                                        y: 0,
-                                        x2: 1,
-                                        y2: 0,
-                                        colorStops: [
-                                          { offset: 0, color: "#34d399" },
-                                          { offset: 1, color: "#059669" },
-                                        ],
-                                      }
-                                    : getVal("1") >= 60
-                                      ? {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#fbbf24" },
-                                            { offset: 1, color: "#d97706" },
-                                          ],
-                                        }
-                                      : {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#f87171" },
-                                            { offset: 1, color: "#dc2626" },
-                                          ],
-                                        },
-                              },
-                              label: {
-                                show: true,
-                                position: "left",
-                                formatter: () => {
-                                  const item = strengthsList.find(
-                                    (s: any) => s.pillar?.no === "1"
-                                  )
-                                  return item
-                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
-                                    : ""
-                                },
-                                fontFamily: "Inter, sans-serif",
-                                fontSize: 10,
-                                color: "#374151",
-                              },
-                            },
-                          ],
-                        },
-                        {
-                          name: "Extrovert",
-                          type: "bar",
-                          xAxisIndex: 1,
-                          yAxisIndex: 1,
-                          barWidth: 22,
-                          markLine: {
-                            silent: true,
-                            symbol: "none",
-                            label: {
-                              formatter: "{b}",
-                              position: "end",
-                              fontSize: 9,
-                              fontFamily: "Inter, sans-serif",
-                            },
-                            lineStyle: { type: "dashed", width: 1 },
-                            data:
-                              chart2Mode === "score"
-                                ? [
-                                    {
-                                      xAxis: 80,
-                                      name: "Kuat",
-                                      lineStyle: { color: "#10b981" },
-                                    },
-                                    {
-                                      xAxis: 60,
-                                      name: "Cukup",
-                                      lineStyle: { color: "#f59e0b" },
-                                    },
-                                  ]
-                                : [
-                                    {
-                                      xAxis: 5,
-                                      name: "Top 2",
-                                      lineStyle: { color: "#10b981" },
-                                    },
-                                    {
-                                      xAxis: 3,
-                                      name: "Top 4",
-                                      lineStyle: { color: "#f59e0b" },
-                                    },
-                                  ],
-                          },
-                          data: [
-                            {
-                              value: getVal("6"),
-                              itemStyle: {
-                                color:
-                                  getVal("6") >= 80
-                                    ? {
-                                        type: "linear",
-                                        x: 0,
-                                        y: 0,
-                                        x2: 1,
-                                        y2: 0,
-                                        colorStops: [
-                                          { offset: 0, color: "#059669" },
-                                          { offset: 1, color: "#34d399" },
-                                        ],
-                                      }
-                                    : getVal("6") >= 60
-                                      ? {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#d97706" },
-                                            { offset: 1, color: "#fbbf24" },
-                                          ],
-                                        }
-                                      : {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#dc2626" },
-                                            { offset: 1, color: "#f87171" },
-                                          ],
-                                        },
-                              },
-                              label: {
-                                show: true,
-                                position: "right",
-                                formatter: () => {
-                                  const item = strengthsList.find(
-                                    (s: any) => s.pillar?.no === "6"
-                                  )
-                                  return item
-                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
-                                    : ""
-                                },
-                                fontFamily: "Inter, sans-serif",
-                                fontSize: 10,
-                                color: "#374151",
-                              },
-                            },
-                            {
-                              value: getVal("5"),
-                              itemStyle: {
-                                color:
-                                  getVal("5") >= 80
-                                    ? {
-                                        type: "linear",
-                                        x: 0,
-                                        y: 0,
-                                        x2: 1,
-                                        y2: 0,
-                                        colorStops: [
-                                          { offset: 0, color: "#059669" },
-                                          { offset: 1, color: "#34d399" },
-                                        ],
-                                      }
-                                    : getVal("5") >= 60
-                                      ? {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#d97706" },
-                                            { offset: 1, color: "#fbbf24" },
-                                          ],
-                                        }
-                                      : {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#dc2626" },
-                                            { offset: 1, color: "#f87171" },
-                                          ],
-                                        },
-                              },
-                              label: {
-                                show: true,
-                                position: "right",
-                                formatter: () => {
-                                  const item = strengthsList.find(
-                                    (s: any) => s.pillar?.no === "5"
-                                  )
-                                  return item
-                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
-                                    : ""
-                                },
-                                fontFamily: "Inter, sans-serif",
-                                fontSize: 10,
-                                color: "#374151",
-                              },
-                            },
-                            {
-                              value: getVal("4"),
-                              itemStyle: {
-                                color:
-                                  getVal("4") >= 80
-                                    ? {
-                                        type: "linear",
-                                        x: 0,
-                                        y: 0,
-                                        x2: 1,
-                                        y2: 0,
-                                        colorStops: [
-                                          { offset: 0, color: "#059669" },
-                                          { offset: 1, color: "#34d399" },
-                                        ],
-                                      }
-                                    : getVal("4") >= 60
-                                      ? {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#d97706" },
-                                            { offset: 1, color: "#fbbf24" },
-                                          ],
-                                        }
-                                      : {
-                                          type: "linear",
-                                          x: 0,
-                                          y: 0,
-                                          x2: 1,
-                                          y2: 0,
-                                          colorStops: [
-                                            { offset: 0, color: "#dc2626" },
-                                            { offset: 1, color: "#f87171" },
-                                          ],
-                                        },
-                              },
-                              label: {
-                                show: true,
-                                position: "right",
-                                formatter: () => {
-                                  const item = strengthsList.find(
-                                    (s: any) => s.pillar?.no === "4"
-                                  )
-                                  return item
-                                    ? `${item.name}\n${chart2Mode === "score" ? Number(item.score).toFixed(0) : "Rank " + item.rank}`
-                                    : ""
-                                },
-                                fontFamily: "Inter, sans-serif",
-                                fontSize: 10,
-                                color: "#374151",
-                              },
-                            },
-                          ],
-                        },
-                      ],
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Chart 1: 40 Pillars */}
-              <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-md">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <h4 className="font-heading text-base font-semibold">
-                    40 Pilar Sifat
-                  </h4>
-                  <div className="flex rounded-md border border-border bg-secondary/80 p-0.5 shadow-inner">
-                    <button
-                      onClick={() => setChart1Mode("score")}
-                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart1Mode === "score" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      Skor
-                    </button>
-                    <button
-                      onClick={() => setChart1Mode("rank")}
-                      className={`rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition-all ${chart1Mode === "rank" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      Rank
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full">
-                  <EBarChart
-                    height={500}
-                    option={{
-                      tooltip: {
-                        trigger: "axis",
-                        axisPointer: { type: "shadow" },
-                        formatter: (params: any) => {
-                          const dataIndex = params[0].dataIndex
-                          const sortedData =
-                            chart1Mode === "score"
-                              ? [...(tb40Result["40"] || [])].sort(
-                                  (a, b) => b.score - a.score
-                                )
-                              : [...(tb40Result["40"] || [])].sort(
-                                  (a, b) => a.rank - b.rank
-                                )
-                          const item = sortedData[dataIndex]
-                          return `<b>${item.name}</b><br/>Score: ${item.score}<br/>Rank: ${item.rank}`
-                        },
-                      },
-                      grid: {
-                        left: "1%",
-                        right: "1%",
-                        bottom: "15%",
-                        top: "8%",
-                        containLabel: true,
-                      },
-                      xAxis: {
-                        type: "category",
-                        data:
-                          chart1Mode === "score"
-                            ? [...(tb40Result["40"] || [])]
-                                .sort((a, b) => b.score - a.score)
-                                .map((d: any) => d.name)
-                            : [...(tb40Result["40"] || [])]
-                                .sort((a, b) => a.rank - b.rank)
-                                .map((d: any) => d.name),
-                        axisLabel: {
-                          interval: 0,
-                          rotate: 45,
-                          fontSize: 9,
-                          fontFamily: "Inter, sans-serif",
-                        },
-                      },
-                      yAxis: { type: "value", show: false },
-                      series: [
-                        {
-                          type: "bar",
-                          data:
-                            chart1Mode === "score"
-                              ? [...(tb40Result["40"] || [])]
-                                  .sort((a, b) => b.score - a.score)
-                                  .map((d: any) => ({
-                                    value: d.score,
-                                    itemStyle: {
-                                      color:
-                                        d.score >= 80
-                                          ? {
-                                              type: "linear",
-                                              x: 0,
-                                              y: 0,
-                                              x2: 0,
-                                              y2: 1,
-                                              colorStops: [
-                                                { offset: 0, color: "#34d399" },
-                                                { offset: 1, color: "#059669" },
-                                              ],
-                                            }
-                                          : d.score >= 60
-                                            ? {
-                                                type: "linear",
-                                                x: 0,
-                                                y: 0,
-                                                x2: 0,
-                                                y2: 1,
-                                                colorStops: [
-                                                  {
-                                                    offset: 0,
-                                                    color: "#fbbf24",
-                                                  },
-                                                  {
-                                                    offset: 1,
-                                                    color: "#d97706",
-                                                  },
-                                                ],
-                                              }
-                                            : {
-                                                type: "linear",
-                                                x: 0,
-                                                y: 0,
-                                                x2: 0,
-                                                y2: 1,
-                                                colorStops: [
-                                                  {
-                                                    offset: 0,
-                                                    color: "#f87171",
-                                                  },
-                                                  {
-                                                    offset: 1,
-                                                    color: "#dc2626",
-                                                  },
-                                                ],
-                                              },
-                                    },
-                                  }))
-                              : [...(tb40Result["40"] || [])]
-                                  .sort((a, b) => a.rank - b.rank)
-                                  .map((d: any) => ({
-                                    value: 41 - d.rank,
-                                    itemStyle: {
-                                      color:
-                                        d.rank <= 10
-                                          ? {
-                                              type: "linear",
-                                              x: 0,
-                                              y: 0,
-                                              x2: 0,
-                                              y2: 1,
-                                              colorStops: [
-                                                { offset: 0, color: "#34d399" },
-                                                { offset: 1, color: "#059669" },
-                                              ],
-                                            }
-                                          : d.rank <= 30
-                                            ? {
-                                                type: "linear",
-                                                x: 0,
-                                                y: 0,
-                                                x2: 0,
-                                                y2: 1,
-                                                colorStops: [
-                                                  {
-                                                    offset: 0,
-                                                    color: "#fbbf24",
-                                                  },
-                                                  {
-                                                    offset: 1,
-                                                    color: "#d97706",
-                                                  },
-                                                ],
-                                              }
-                                            : {
-                                                type: "linear",
-                                                x: 0,
-                                                y: 0,
-                                                x2: 0,
-                                                y2: 1,
-                                                colorStops: [
-                                                  {
-                                                    offset: 0,
-                                                    color: "#f87171",
-                                                  },
-                                                  {
-                                                    offset: 1,
-                                                    color: "#dc2626",
-                                                  },
-                                                ],
-                                              },
-                                    },
-                                  })),
-                          markLine: {
-                            silent: true,
-                            symbol: "none",
-                            label: {
-                              formatter: "{b}",
-                              position: "end",
-                              fontSize: 9,
-                              fontFamily: "Inter, sans-serif",
-                            },
-                            lineStyle: { type: "dashed", width: 1 },
-                            data:
-                              chart1Mode === "score"
-                                ? [
-                                    {
-                                      yAxis: 80,
-                                      name: "Kuat",
-                                      lineStyle: { color: "#10b981" },
-                                    },
-                                    {
-                                      yAxis: 60,
-                                      name: "Cukup",
-                                      lineStyle: { color: "#f59e0b" },
-                                    },
-                                  ]
-                                : [
-                                    {
-                                      yAxis: 31,
-                                      name: "Top 10",
-                                      lineStyle: { color: "#10b981" },
-                                    },
-                                    {
-                                      yAxis: 11,
-                                      name: "Top 30",
-                                      lineStyle: { color: "#f59e0b" },
-                                    },
-                                  ],
-                          },
-                        },
-                      ],
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 3: LEARNING STYLE & HEART LANGUAGE */}
-          <div
-            ref={gayaRef}
-            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
-          >
-            <h3 className="flex items-center gap-2 border-b border-border pb-3 font-heading text-2xl font-semibold">
-              <Brain className="h-5 w-5 text-primary" /> Gaya Belajar & Bahasa
-              Hati
-            </h3>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {/* Learning Style Card */}
-              <div className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-md">
-                <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-full bg-primary/5 blur-2xl" />
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl border border-primary/20 bg-primary/10 p-2.5">
-                    <BookOpen className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                      AKAL & METODOLOGI
-                    </span>
-                    <h4 className="font-heading text-lg font-semibold text-foreground">
-                      Gaya Belajar Ideal
-                    </h4>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border bg-secondary/80 p-3 font-heading text-sm leading-relaxed font-medium text-foreground">
-                  "{tb40Presentation.ringkasan_gaya_belajar.data}"
-                </div>
-
-                {/* Detailed Cognitive description parsed from ranked first pillar */}
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Metode belajar dominan Anda sangat dipengaruhi oleh kekuatan
-                  struktur mental utama Anda ({tb40ResultRanked["3"]?.[0]?.name}
-                  ). Pendekatan ini meningkatkan kecepatan retensi informasi,
-                  pemahaman teoritis, dan kenyamanan visual/kinestetik di
-                  lingkungan belajar Anda.
-                </p>
-              </div>
-
-              {/* Heart Language Card */}
-              <div className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-md">
-                <div className="pointer-events-none absolute top-0 right-0 h-24 w-24 rounded-full bg-destructive/5 blur-2xl" />
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-2.5">
-                    <Heart className="h-6 w-6 text-destructive" />
-                  </div>
-                  <div>
-                    <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                      EMOSIONAL & SOSIAL
-                    </span>
-                    <h4 className="font-heading text-lg font-semibold text-foreground">
-                      Bahasa Hati & Sentuhan Rasa
-                    </h4>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border bg-secondary/80 p-3 font-heading text-sm leading-relaxed font-medium text-foreground">
-                  "{tb40Presentation.ringkasan_bahasa_hati.data}"
-                </div>
-
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Perasaan dan hubungan interaksi sosial Anda beresonansi paling
-                  kuat ketika tersentuh melalui cara ini. Memahami bahasa hati
-                  ini berguna untuk membangun kemitraan tim yang sehat,
-                  memelihara keluarga, dan menjalin silaturahmi yang harmonis.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 4: FULL DETAILED LIST OF 40 NOBLE CHARACTERISTICS */}
-          <div
-            ref={rincianRef}
-            className="flex scroll-mt-12 flex-col gap-6 print:break-before-page"
-          >
-            <div className="flex flex-col gap-4 border-b border-border pb-3 md:flex-row md:items-center md:justify-between">
-              <h3 className="flex items-center gap-2 font-heading text-2xl font-semibold">
-                <MessageSquare className="h-5 w-5 text-primary" /> Rincian Sifat
-                40 Pilar Mulia
-              </h3>
-
-              {/* Search Input Filter */}
-              <div className="relative w-full max-w-xs print:hidden">
-                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
-                <input
-                  type="text"
-                  placeholder="Cari pilar sifat..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full rounded-full border border-input bg-card py-1.5 pr-4 pl-9 text-xs transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <p className="-mt-2 text-sm leading-relaxed text-muted-foreground">
-              Di bawah ini adalah rincian lengkap 40 pilar kepribadian mulia
-              Anda. Setiap sifat dilengkapi dengan definisi, sifat tercela yang
-              mungkin timbul bila berlebihan (atau kurang), serta rekomendasi
-              perbaikan karakter. Gunakan filter di bawah ini untuk menjelajahi
-              profil Anda secara mendalam.
-            </p>
-
-            {/* Premium UI Filter and Sort Controls */}
-            <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card/45 p-4 shadow-xs print:hidden">
-              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                {/* Filter Chips */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="mr-1 font-mono text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                    Klaster:
-                  </span>
-                  {[
-                    { value: "all", label: "Semua" },
-                    { value: "introvert", label: "Introvert" },
-                    { value: "extrovert", label: "Ekstrovert" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFilterBy(opt.value as any)}
-                      className={`cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                        filterBy === opt.value
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-
-                  <span className="mr-1 ml-2 font-mono text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                    Nafs (Jiwa):
-                  </span>
-                  {[
-                    { value: "muthmainnah", label: "Muthmainnah (Rasa)" },
-                    { value: "lawwamah", label: "Lawwamah (Akal)" },
-                    { value: "ammarah", label: "Ammarah (Karsa)" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFilterBy(opt.value as any)}
-                      className={`cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                        filterBy === opt.value
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Sort Selector */}
-                <div className="flex shrink-0 items-center gap-2 self-start lg:self-auto">
-                  <span className="font-mono text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                    Urutan:
-                  </span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="cursor-pointer rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition-all focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    <option value="highest">Skor Tertinggi</option>
-                    <option value="lowest">Skor Terendah</option>
-                    <option value="alphabetical">Abjad (Nama A-Z)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              {filteredPillars.map((p: any, pIdx: number) => {
-                const score = p.score
-                const rootNo = getPillarRoot(p)
-
-                // Determine Nafs Classification based on Root Lineage
-                let nafsLabel = "Nafs Lawwamah"
-                if (rootNo === "1") nafsLabel = "Nafs Ammarah"
-                if (rootNo === "2") nafsLabel = "Nafs Lawwamah"
-                if (rootNo === "3") nafsLabel = "Nafs Muthmainnah"
-
-                // Rating styles based on Score (Visual cues)
-                let ratingBorderColor =
-                  "border-amber-200 dark:border-amber-950/20"
-                let ratingBgColor =
-                  "bg-amber-50/70 dark:bg-amber-950/10 text-amber-800 dark:text-amber-300"
-
-                if (score >= 80) {
-                  ratingBorderColor =
-                    "border-teal-200 dark:border-teal-950/20 border-l-teal-600 border-l-4"
-                  ratingBgColor =
-                    "bg-teal-50 dark:bg-teal-950/20 text-teal-800 dark:text-teal-400 font-semibold"
-                } else if (score >= 60) {
-                  ratingBorderColor =
-                    "border-emerald-200 dark:border-emerald-950/20 border-l-emerald-600 border-l-4"
-                  ratingBgColor =
-                    "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400"
-                } else if (score <= 40) {
-                  ratingBorderColor =
-                    "border-rose-200 dark:border-rose-950/20 border-l-rose-600 border-l-4"
-                  ratingBgColor =
-                    "bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400"
-                }
-
-                return (
-                  <div
-                    key={p.name}
-                    className={`flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md ${ratingBorderColor} ${(pIdx + 1) % 2 === 0 ? "print:break-after-page" : ""}`}
-                  >
-                    <div className="flex flex-col justify-between gap-2 border-b border-border/70 pb-3 sm:flex-row sm:items-center">
-                      <div className="flex items-baseline gap-2">
-                        <span className="rounded border border-border bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-primary">
-                          Pilar {p.pillar.no}
-                        </span>
-                        <h4 className="font-heading text-lg font-semibold text-foreground">
-                          {p.data?.nama_lengkap || p.name}
-                        </h4>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ratingBgColor}`}
-                        >
-                          {nafsLabel}
-                        </span>
-                        <span className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                          Skor: {score} &bull; Rangka: {p.rank}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Pillar Arabic Calligraphy if exists */}
-                    {p.data?.arab && (
-                      <div className="-mt-2 text-right">
-                        <span className="font-arabic font-heading text-2xl font-bold tracking-wide text-primary/80">
-                          {p.data.arab}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Trait Definition */}
-                    <div className="flex flex-col gap-1">
-                      <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                        DEFINISI PILAR
-                      </span>
-                      <p className="font-sans text-sm leading-relaxed text-foreground/90">
-                        {p.data?.definisi || "Belum ada definisi terperinci."}
-                      </p>
-                    </div>
-
-                    {/* Lalai & Lebih Attributes */}
-                    <div className="mt-1 grid grid-cols-1 gap-4 rounded-xl border border-border/80 bg-secondary/50 p-4 sm:grid-cols-2">
-                      {p.data?.lalai_nama_lengkap && (
-                        <div className="flex flex-col gap-1 border-r border-border/40 pr-2 print:border-none">
-                          <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-rose-700 uppercase dark:text-rose-400">
-                            ⚠️ Potensi Lalai / Kurang
-                          </span>
-                          <h5 className="font-heading text-xs font-medium text-foreground">
-                            {p.data.lalai_nama_lengkap}
-                          </h5>
-                          <p className="mt-0.5 text-[11px] leading-normal text-muted-foreground">
-                            {p.data.lalai_definisi}
-                          </p>
-                        </div>
-                      )}
-                      {p.data?.lebih_nama_lengkap && (
-                        <div className="flex flex-col gap-1">
-                          <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-amber-700 uppercase dark:text-amber-400">
-                            ⚠️ Potensi Berlebihan
-                          </span>
-                          <h5 className="font-heading text-xs font-medium text-foreground">
-                            {p.data.lebih_nama_lengkap}
-                          </h5>
-                          <p className="mt-0.5 text-[11px] leading-normal text-muted-foreground">
-                            {p.data.lebih_definisi}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Recommendation Actions if available */}
-                    {p.data?.profesi && (
-                      <div className="mt-1 flex flex-col gap-1">
-                        <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                          💼 Rekomendasi Profesi & Peran
-                        </span>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          {p.data.profesi}
-                        </p>
-                      </div>
-                    )}
-
-                    {p.data?.jurusan && (
-                      <div className="flex flex-col gap-1">
-                        <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                          🎓 Jurusan Pendidikan Terkait
-                        </span>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          {p.data.jurusan}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-
-              {filteredPillars.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center">
-                  <HelpCircle className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
-                  <p className="text-sm text-muted-foreground">
-                    Tidak menemukan pilar sifat yang cocok dengan pencarian
-                    Anda.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* FOOTER & ACCREDITATION STATEMENT */}
-          <div className="border-t border-border pt-8 pb-12 text-center print:mt-12 print:border-t-2 print:border-black">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Metode Tafsir Bakat 40 (TB40) diselaraskan oleh Lembaga Insan
-              Taqwa. Laporan ini bersifat personal dan dimaksudkan sebagai
-              referensi bimbingan pengembangan karakter dan akhlak mulia.
-            </p>
-            <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
-              ID Laporan: {umum.nama.panggilan.toLowerCase()}-
-              {(umum.usia || "00").toString()}-
-              {Math.floor(Math.random() * 1000)}
             </p>
           </div>
         </div>
 
-        {/* Dynamic Printing-specific CSS directly injected for gorgeous PDF styling */}
-        <style>{`
-        @media print {
-          body {
-            background-color: white !important;
-            color: black !important;
-            font-size: 12pt;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-          .print\\:bg-white {
-            background-color: white !important;
-          }
-          .print\\:text-black {
-            color: black !important;
-          }
-          .bg-card, .bg-secondary, .bg-primary\\/10 {
-            background-color: #faf9f6 !important;
-            border-color: #e5e5e5 !important;
-          }
-          .border-l-primary {
-            border-left-color: #6E8268 !important;
-            border-left-width: 4px !important;
-          }
-          .tb40-interactive-svg {
-            max-width: 100% !important;
-            height: auto !important;
-          }
-          .print\\:break-before-page {
-            break-before: page !important;
-          }
-          .print\\:break-inside-avoid {
-            break-inside: avoid !important;
-          }
-        }
-      `}</style>
-      </div>
+        {/* Share Button for Current Tier */}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShareModalOpen(true)}
+            className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs"
+          >
+            <Share2 className="w-3.5 h-3.5 mr-1.5" />
+            Bagikan Hasil Tier {currentTier}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => window.print()}
+            className="border-slate-700 text-slate-300 hover:text-white"
+          >
+            <Printer className="w-4 h-4" />
+          </Button>
+        </div>
+      </header>
 
-      {/* Conflict Modal */}
-      <Dialog open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
-        <DialogContent className="max-w-md print:hidden">
-          <DialogHeader>
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-lg border border-primary/20 bg-primary/10 p-2 text-primary">
-                <AlertTriangle className="h-5 w-5" />
+      {/* Main Report Body Container */}
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl space-y-8">
+        
+        {/* Calling Card Title Banner */}
+        <div className="bg-gradient-to-r from-teal-900/50 via-slate-900 to-indigo-900/50 border border-teal-500/30 rounded-3xl p-8 shadow-2xl relative overflow-hidden text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="space-y-2">
+            <span className="text-xs font-extrabold tracking-wider uppercase text-teal-400 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20">
+              Judul Panggilan Karakter
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-100 tracking-tight">
+              {reportData?.result?.panggilan || reportData?.halfway_report?.preliminary_results?.panggilan || 'Sang Pelaksana Tangguh & Tekun'}
+            </h2>
+            <p className="text-slate-400 text-sm max-w-xl leading-relaxed">
+              Gambaran karakter utama {displaySubjectName} dalam mengeksekusi tugas, berinteraksi, dan mengoptimalkan potensi bakat.
+            </p>
+          </div>
+
+          <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-teal-500 to-indigo-500 p-0.5 shadow-xl shrink-0">
+            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-teal-300">
+              <Sparkles className="w-10 h-10" />
+            </div>
+          </div>
+        </div>
+
+        {/* Gaya Belajar & Bahasa Hati Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                <BookOpen className="w-5 h-5" />
               </div>
-              <div className="flex flex-col gap-1.5 text-left">
-                <DialogTitle className="font-heading text-lg font-semibold">
-                  Pilih Versi Hasil Penilaian
-                </DialogTitle>
-                <DialogDescription className="text-sm leading-relaxed">
-                  Terdapat perbedaan antara hasil yang ada di tautan Anda dengan yang ada di database kami. Silakan pilih hasil mana yang ingin Anda lihat. (Pilihan ini tidak akan menimpa data di database).
-                </DialogDescription>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-400">Gaya Belajar Utama</h3>
+                <h4 className="text-lg font-bold text-slate-100">
+                  {typeof reportData?.result?.highest_gaya_belajar === 'object'
+                    ? (reportData?.result?.highest_gaya_belajar?.gaya_belajar || reportData?.result?.highest_gaya_belajar?.category_name || 'Kinestetik & Eksperimen Langsung')
+                    : (reportData?.result?.highest_gaya_belajar || 'Kinestetik & Eksperimen Langsung')}
+                </h4>
               </div>
             </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {displaySubjectName} paling efektif menyerap informasi melalui praktik langsung, uji coba eksperimen, dan keterlibatan fisik.
+            </p>
+          </div>
+
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <Heart className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-400">Bahasa Hati Utama</h3>
+                <h4 className="text-lg font-bold text-slate-100">
+                  {typeof reportData?.result?.highest_bahasa_hati === 'object'
+                    ? (reportData?.result?.highest_bahasa_hati?.bahasa_hati || reportData?.result?.highest_bahasa_hati?.category_name || 'Pertolongan Nyata (Acts of Service)')
+                    : (reportData?.result?.highest_bahasa_hati || 'Pertolongan Nyata (Acts of Service)')}
+                </h4>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {displaySubjectName} merasa paling dihargai dan termotivasi ketika menerima aksi bantuan nyata dan dukungan praktis.
+            </p>
+          </div>
+        </div>
+
+        {/* Visual SVG Radar / Bar Chart Section */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-slate-100">Peta Visualisasi Profil Bakat</h3>
+            <span className="text-xs text-teal-400 font-semibold">SVG Render Ready</span>
+          </div>
+
+          {reportData?.result?.svg ? (
+            <div className="w-full flex justify-center p-4 bg-slate-950 rounded-2xl border border-slate-800 overflow-x-auto"
+                 dangerouslySetInnerHTML={{ __html: reportData.result.svg }} />
+          ) : (
+            <div className="w-full h-64 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center text-slate-500 text-sm">
+              [Visual SVG Radar Chart Generated by API v0.3 Engine]
+            </div>
+          )}
+        </div>
+
+        {/* Career & Educational Guidance Compilation */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
+          <div>
+            <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Rekomendasi Kompilasi Bakat</span>
+            <h3 className="text-2xl font-bold text-slate-100 mt-1">Panduan Karir & Pendidikan</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              Rekomendasi bidang profesi dan jurusan studi yang paling sesuai dengan profil bakat {displaySubjectName}.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Career Recommendations */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-teal-300 flex items-center gap-2">
+                <Briefcase className="w-4 h-4" /> Rekomendasi Karir & Profesi
+              </h4>
+              <div className="space-y-3">
+                {careerRecommendations.map((c, i) => (
+                  <div key={i} className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-800 space-y-1">
+                    <h5 className="font-semibold text-sm text-slate-200">{c.role}</h5>
+                    <p className="text-xs text-slate-400">{c.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Education Recommendations */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-indigo-300 flex items-center gap-2">
+                <GraduationCap className="w-4 h-4" /> Rekomendasi Jurusan & Studi
+              </h4>
+              <div className="space-y-3">
+                {educationRecommendations.map((e, i) => (
+                  <div key={i} className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-800 space-y-1">
+                    <h5 className="font-semibold text-sm text-slate-200">{e.major}</h5>
+                    <p className="text-xs text-slate-400">{e.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Tier 2 Contact Lock Prompt Banner (If Tier 2) */}
+        {currentTier === '2' && (
+          <div className="bg-slate-900 border border-teal-500/40 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-teal-500/20 text-teal-400">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-200">Kunci & Amankan Jawaban Anda</h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Masukkan email atau WhatsApp untuk mengamankan data tes agar bisa dilanjutkan kapan saja.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setContactModalOpen(true)}
+              className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold shrink-0 text-xs"
+            >
+              Amankan Jawaban Sesi Ini
+            </Button>
+          </div>
+        )}
+
+      </main>
+
+      {/* SHARE RESULT & QR CODE MODAL */}
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-slate-50 max-w-md text-center">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-100">
+              Bagikan Hasil Laporan Tier {currentTier}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs mt-1">
+              Bagikan link eksplisit laporan ini atau pindai QR Code di bawah.
+            </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-2 flex flex-col sm:flex-row items-center justify-end gap-2.5 border-t border-border pt-4">
+
+          <div className="py-4 flex flex-col items-center gap-4">
+            {/* Dynamic QR Code */}
+            <div className="p-4 bg-white rounded-2xl shadow-xl">
+              <QRCodeSVG value={currentShareUrl} size={160} />
+            </div>
+
+            {/* Explicit Share URL Input */}
+            <div className="w-full space-y-2">
+              <Label className="text-xs text-slate-400">Explicit Share URL (Shortened)</Label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={currentShareUrl}
+                  className="bg-slate-800 border-slate-700 text-xs font-mono text-teal-300"
+                />
+                <Button onClick={handleCopyShareLink} className="bg-teal-500 text-slate-950 font-bold shrink-0">
+                  {copied ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* TIER 2 CONTACT LOCK DIALOG */}
+      <Dialog open={contactModalOpen} onOpenChange={setContactModalOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-slate-50 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-100">Amankan Jawaban Tes</DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs">
+              Masukkan email atau nomor ponsel untuk mengamankan data dan melanjutkan ke Tier 3 di perangkat mana pun.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleContactSubmit} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-300">Alamat Email</Label>
+              <Input
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="nama@email.com"
+                className="bg-slate-800 border-slate-700 text-slate-100 text-xs"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-300">Nomor WhatsApp / HP</Label>
+              <Input
+                type="tel"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="+6281234567890"
+                className="bg-slate-800 border-slate-700 text-slate-100 text-xs"
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="submit" disabled={contactSaving} className="w-full bg-teal-500 font-bold text-slate-950">
+                {contactSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan & Amankan Data'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DATA CONFLICT RESOLUTION DIALOG (DB vs URL) */}
+      <Dialog open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-slate-50 max-w-lg">
+          <DialogHeader>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-2">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-slate-100">
+              Perbedaan Data Versi Database vs URL
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs mt-1">
+              Ditemukan data tersimpan di server database PocketBase yang lebih lengkap dibanding parameter URL ini.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-3 py-3 text-xs">
+            <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/30 space-y-1">
+              <span className="font-bold text-teal-300 block">Versi Database Server ⭐</span>
+              <p className="text-slate-300">Kelengkapan: <strong>{dbSubmissionData?.halfway_report?.completion_percentage || 100}%</strong></p>
+              <p className="text-slate-400 text-[10px]">Tersimpan: {dbSubmissionData?.timestamp ? new Date(dbSubmissionData.timestamp).toLocaleString() : 'Terbaru'}</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-800 border border-slate-700 space-y-1">
+              <span className="font-bold text-slate-300 block">Versi Parameter URL</span>
+              <p className="text-slate-300">Kelengkapan: <strong>50% (Tier 2)</strong></p>
+              <p className="text-slate-400 text-[10px]">Data dari parameter URL</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              onClick={() => setConflictModalOpen(false)}
+              className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs"
+            >
+              Gunakan Versi Database Server (Rekomendasi)
+            </Button>
             <Button
               variant="outline"
-              type="button"
-              onClick={() => {
-                setConflictModalOpen(false)
-                if (conflictDataUrl) applyResult(conflictDataUrl.result, conflictDataUrl.umum, true)
-              }}
-              className="cursor-pointer w-full sm:w-auto py-1.5 text-xs shadow-none"
+              onClick={() => setConflictModalOpen(false)}
+              className="w-full border-slate-700 text-slate-300 text-xs"
             >
-              Gunakan Hasil Tautan
-            </Button>
-            <Button
-              variant="default"
-              type="button"
-              onClick={() => {
-                setConflictModalOpen(false)
-                if (conflictDataDb) applyResult(conflictDataDb.result, conflictDataDb.umum, false)
-              }}
-              className="cursor-pointer w-full sm:w-auto px-4 py-1.5 text-xs font-semibold"
-            >
-              Gunakan Hasil Database
+              Gunakan Versi URL
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Reset Modal */}
-      <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
-        <DialogContent className="max-w-md print:hidden">
-          <DialogHeader>
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 animate-bounce rounded-lg border border-destructive/20 bg-destructive/10 p-2 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col gap-1.5 text-left">
-                <DialogTitle className="font-heading text-lg font-semibold">
-                  Ulangi Tes & Hapus Data?
-                </DialogTitle>
-                <DialogDescription className="text-sm leading-relaxed">
-                  Apakah Anda yakin ingin mengulangi tes dari awal? Tindakan ini
-                  akan menghapus semua data pendaftaran, jawaban, dan hasil
-                  analisis Anda secara permanen dari perangkat ini.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <DialogFooter className="mt-2 flex items-center justify-end gap-2.5 border-t border-border pt-4">
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => setShowResetModal(false)}
-              className="cursor-pointer border-none py-1.5 text-xs shadow-none hover:bg-muted"
-            >
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              type="button"
-              onClick={confirmResetAndRestart}
-              className="text-destructive-foreground cursor-pointer bg-destructive px-4 py-1.5 text-xs font-semibold hover:bg-destructive/90"
-            >
-              Ya, Ulangi & Hapus
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Share Modal */}
-      <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <div className="mb-2 rounded-full bg-primary/10 p-3 text-primary">
-                <Share2 className="h-6 w-6" />
-              </div>
-              <DialogTitle className="font-heading text-xl font-semibold">
-                Bagikan Hasil Penilaian
-              </DialogTitle>
-              <DialogDescription className="text-xs leading-relaxed">
-                Scan QR Code atau salin tautan di bawah untuk membagikan hasil
-                penilaian Anda secara langsung.
-              </DialogDescription>
-            </div>
-          </DialogHeader>
-
-          <div className="mx-auto flex justify-center rounded-xl border border-border bg-white p-4">
-            <QRCodeSVG value={shareUrl} size={180} />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="ml-1 font-mono text-[10px] font-semibold text-muted-foreground uppercase">
-              Tautan Publik
-            </span>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={shareUrl}
-                className="flex-1 truncate rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-xs text-muted-foreground outline-none"
-              />
-              <Button
-                onClick={copyToClipboard}
-                size="sm"
-                className="flex shrink-0 cursor-pointer items-center gap-1.5"
-              >
-                {isCopied ? (
-                  <Check className="h-4 w-4 text-emerald-400" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-                {isCopied ? "Tersalin" : "Salin"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    </div>
   )
 }

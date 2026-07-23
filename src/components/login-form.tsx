@@ -34,7 +34,7 @@ export function LoginForm({
     if (password === correctPassword) {
       login()
       toast.success("Login successful")
-      navigate({ to: "/dashboard" })
+      navigate({ to: "/admin/cohort" })
     } else {
       toast.error("Incorrect password")
       setPassword("")
