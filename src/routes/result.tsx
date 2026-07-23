@@ -456,6 +456,33 @@ function ResultPage() {
           </div>
         )}
 
+        {/* TIER 4 PRECISION MODE CTA CARD */}
+        <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-900/30 via-slate-900 to-purple-900/30 border border-indigo-500/30 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-300">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-200">Ingin Mengasah Presisi 40 Pilar Bakat?</h4>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Tingkatkan analisis ke Presisi Mode Tier 4 untuk menyesuaikan skor 40 pilar bakat secara spesifik.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => {
+              const activeId = searchParams.id || reportData?.id
+              if (activeId) {
+                navigate({ to: '/test', search: { id: activeId } })
+              }
+            }}
+            variant="outline"
+            className="border-indigo-500/40 hover:bg-indigo-500/20 text-indigo-200 font-bold shrink-0 text-xs py-2.5 px-4"
+          >
+            Presisi Mode Tier 4 (40 Pilar) 🎯
+          </Button>
+        </div>
+
       </main>
 
       {/* SHARE RESULT & QR CODE MODAL */}

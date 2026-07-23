@@ -30,14 +30,10 @@ export interface ContactUpdatePayload {
 }
 
 export interface EvaluatePayload {
-  sequence_number: number
-  answers: {
-    tier_1?: { introvert: number; extrovert: number }
-    tier_2?: string[] | { order: string[] }
-    tier_3?: Record<string, number>
-    tier_4?: Record<string, number>
-  }
+  sequence_number?: number
+  answers?: Record<string, any>
   request_precision?: boolean
+  is_anonymous?: boolean
 }
 
 /**

@@ -46,7 +46,12 @@ test.describe('TB40 Frontend E2E - v0.3 Multi-Step Adaptive Flow', () => {
     await expect(t2Btn).toBeEnabled({ timeout: 5000 })
     await t2Btn.click()
 
-    // 6. Profile Gate Boundary Modal
+    // 6. Tier 2 Teaser Card & Big CTA Container Button
+    const bigCtaBtn = page.locator('button:has-text("Lengkapi Profil & Lanjutkan ke Tier 3")')
+    await expect(bigCtaBtn).toBeVisible({ timeout: 10000 })
+    await bigCtaBtn.click()
+
+    // 7. Profile Gate Boundary Modal
     const profileModalTitle = page.locator('text="Lengkapi Profil untuk Membuka Tier 3"')
     await expect(profileModalTitle).toBeVisible({ timeout: 10000 })
     await page.fill('#subjectName', 'Playwright Tester v0.3')

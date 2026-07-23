@@ -49,8 +49,21 @@ function LandingPage() {
     checkActiveSession()
   }, [])
 
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false)
+  const [pendingType, setPendingType] = useState<'tb40' | 'tb40anak' | null>(null)
+
   const handleStartTest = async (type: 'tb40' | 'tb40anak') => {
+    if (activeSession) {
+      setPendingType(type)
+      setConfirmModalOpen(true)
+      return
+    }
+    await executeNewSubmission(type)
+  }
+
+  const executeNewSubmission = async (type: 'tb40' | 'tb40anak') => {
     setLoadingType(type)
+    setConfirmModalOpen(false)
     try {
       const res = await createSubmission({ is_anonymous: true, type })
       if (res && res.id) {
@@ -60,7 +73,7 @@ function LandingPage() {
         alert('Gagal memulai tes. Silakan pastikan server API berjalan.')
       }
     } catch (err) {
-      console.error('handleStartTest error:', err)
+      console.error('executeNewSubmission error:', err)
       alert('Terjadi kesalahan koneksi saat memulai tes.')
     } finally {
       setLoadingType(null)
@@ -109,25 +122,31 @@ function LandingPage() {
         
         {/* Active Session Resume Banner */}
         {!checkingSession && activeSession && (
-          <div className="w-full mb-8 p-4 rounded-2xl bg-gradient-to-r from-teal-900/40 via-indigo-900/40 to-slate-900/40 border border-teal-500/30 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl shadow-teal-950/50 text-left">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-teal-500/20 text-teal-300">
-                <RotateCcw className="w-6 h-6 animate-spin-slow" />
+          <div className="w-full mb-8 p-4 rounded-2xl bg-gradient-to-r from-teal-900/40 via-indigo-900/40 to-slate-900/40 border border-teal-500/30 backdrop-blur-md flex flex-col gap-3 shadow-xl shadow-teal-950/50 text-left">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-teal-500/20 text-teal-300">
+                  <RotateCcw className="w-6 h-6 animate-spin-slow" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-teal-200">Anda Memiliki Tes yang Belum Selesai</h3>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    ID: <span className="font-mono text-teal-400">{activeSession.id}</span> ({activeSession.type === 'tb40anak' ? 'Versi Anak' : 'Versi Dewasa'})
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-teal-200">Anda Memiliki Tes yang Belum Selesai</h3>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  ID: <span className="font-mono text-teal-400">{activeSession.id}</span> ({activeSession.type === 'tb40anak' ? 'Versi Anak' : 'Versi Dewasa'})
-                </p>
-              </div>
+              <Button
+                onClick={handleResumeSession}
+                className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 shadow-lg shadow-teal-500/20"
+              >
+                Lanjutkan Tes Saya
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
-            <Button
-              onClick={handleResumeSession}
-              className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-6 shadow-lg shadow-teal-500/20"
-            >
-              Lanjutkan Tes Saya
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+            <p className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+              Memilih tombol di bawah akan memulai tes baru. Data tes sebelumnya tetap tersimpan secara aman di server.
+            </p>
           </div>
         )}
 
@@ -245,6 +264,41 @@ function LandingPage() {
         </div>
 
       </main>
+
+      {/* Active Session Overwrite Confirmation Modal */}
+      {confirmModalOpen && activeSession && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3 text-amber-400">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-100">Tes Sebelumnya Belum Selesai</h3>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Anda memiliki sesi tes <span className="font-mono text-teal-400">({activeSession.id})</span> yang belum selesai. Apakah Anda ingin melanjutkan tes sebelumnya atau memulai tes baru?
+            </p>
+
+            <div className="space-y-3 pt-2">
+              <Button
+                onClick={handleResumeSession}
+                className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold py-3 text-sm shadow-lg shadow-teal-500/20"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Lanjutkan Tes Saya
+              </Button>
+              <Button
+                onClick={() => pendingType && executeNewSubmission(pendingType)}
+                variant="outline"
+                className="w-full border-slate-700 hover:bg-slate-800 text-slate-200 py-3 text-sm"
+              >
+                Mulai Tes Baru
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">

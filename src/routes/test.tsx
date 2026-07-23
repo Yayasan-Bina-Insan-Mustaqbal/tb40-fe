@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   WifiOff,
   Clock,
+  Sparkles,
 } from 'lucide-react'
 import {
   getSubmission,
@@ -64,10 +65,9 @@ function TestWizard() {
   // Tier 2 State (Karsa / Cipta / Rasa Forced Ranking Order)
   const [forcedRanking, setForcedRanking] = useState<string[]>([])
 
-  // Profile Gate Modal State (when next_tier === 'profile_required')
+  // Profile Gate Modal State
   const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [subjectName, setSubjectName] = useState('')
-  const [birthDate, setBirthDate] = useState('')
   const [ageVal, setAgeVal] = useState<number | ''>('')
   const [isObserver, setIsObserver] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
@@ -189,7 +189,6 @@ function TestWizard() {
       if (res && res.saved) {
         setLastSavedTimestamp(new Date().toLocaleTimeString())
         setSubmission((prev: any) => ({ ...prev, ...res }))
-        if (res.next_tier === 'profile_required') setProfileModalOpen(true)
       }
     } catch (err) {
       console.error('Tier 2 save error:', err)
@@ -207,7 +206,6 @@ function TestWizard() {
     try {
       const res = await updateProfile(submissionId, {
         subject_name: subjectName.trim(),
-        birth_date: birthDate || undefined,
         age: typeof ageVal === 'number' ? ageVal : undefined,
         is_observer: isObserver,
       })
@@ -360,20 +358,26 @@ function TestWizard() {
           <div className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
             <div className="mb-6">
               <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Tier 1: Energi Sosial</span>
-              <h2 className="text-2xl font-bold text-slate-100 mt-1">Alokasi Energi Sosial (Introvert vs Extrovert)</h2>
+              <h2 className="text-2xl font-bold text-slate-100 mt-1">
+                {submission?.type === 'tb40anak' ? 'Gaya Mengisi Energi Diri (Menyendiri vs Ramai-Ramai)' : 'Alokasi Energi Sosial (Introvert vs Extrovert)'}
+              </h2>
               <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                Tentukan pembagian persen kecenderungan energi sosial Anda. Total alokasi harus berjumlah 100%.
+                {submission?.type === 'tb40anak' ? 'Mana yang lebih membuatmu bersemangat & ceria? Geser slider untuk membagi kebiasaanmu!' : 'Tentukan pembagian persen kecenderungan energi sosial Anda. Total alokasi harus berjumlah 100%.'}
               </p>
             </div>
 
             {/* Double Percentage Visual Card */}
             <div className="grid grid-cols-2 gap-4 mb-8">
               <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 text-center">
-                <span className="text-xs text-slate-400 block mb-1">Introvert (Menyendiri/Internal)</span>
+                <span className="text-xs text-slate-400 block mb-1">
+                  {submission?.type === 'tb40anak' ? 'Suka Menyendiri 🌿' : 'Introvert (Menyendiri/Internal)'}
+                </span>
                 <span className="text-3xl font-extrabold text-teal-400">{introvertVal}%</span>
               </div>
               <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 text-center">
-                <span className="text-xs text-slate-400 block mb-1">Extrovert (Berinteraksi/Eksternal)</span>
+                <span className="text-xs text-slate-400 block mb-1">
+                  {submission?.type === 'tb40anak' ? 'Suka Ramai-Ramai 🎉' : 'Extrovert (Berinteraksi/Eksternal)'}
+                </span>
                 <span className="text-3xl font-extrabold text-indigo-400">{extrovertVal}%</span>
               </div>
             </div>
@@ -381,9 +385,9 @@ function TestWizard() {
             {/* Allocation Slider */}
             <div className="space-y-4 mb-8">
               <div className="flex justify-between text-xs text-slate-400 font-semibold">
-                <span>100% Introvert</span>
+                <span>{submission?.type === 'tb40anak' ? 'Fokus Sendiri' : '100% Introvert'}</span>
                 <span>50% / 50%</span>
-                <span>100% Extrovert</span>
+                <span>{submission?.type === 'tb40anak' ? 'Main Bersama' : '100% Extrovert'}</span>
               </div>
               <Slider
                 value={[introvertVal]}
@@ -410,18 +414,32 @@ function TestWizard() {
           <div className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
             <div className="mb-6">
               <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Tier 2: Orientasi Bakat</span>
-              <h2 className="text-2xl font-bold text-slate-100 mt-1">Pemeringkatan Orientasi Bakat Utama</h2>
+              <h2 className="text-2xl font-bold text-slate-100 mt-1">
+                {submission?.type === 'tb40anak' ? 'Urutan Kebiasaan & Bakat Kesukaanmu' : 'Pemeringkatan Orientasi Bakat Utama'}
+              </h2>
               <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                Pilih dan urutkan 3 dimensi di bawah dari yang paling menggambarkan diri Anda (Urutan #1 = Paling Kuat).
+                {submission?.type === 'tb40anak' ? 'Pilih 3 kotak di bawah berurutan dari yang paling kamu sukai! (No. #1 = Paling Suka)' : 'Pilih dan urutkan 3 dimensi di bawah dari yang paling menggambarkan diri Anda (Urutan #1 = Paling Kuat).'}
               </p>
             </div>
 
             {/* Selection Options */}
             <div className="space-y-3 mb-8">
               {[
-                { key: 'karsa', label: 'Karsa (Pengerahan Tenaga & Eksekusi Nyata ⚡)', desc: 'Suka bekerja keras, menyelesaikan tugas, dan bertindak cepat.' },
-                { key: 'cipta', label: 'Cipta (Gagasan, Analisis & Logika 💡)', desc: 'Suka berpikir mendalam, menganalisis data, dan menciptakan ide.' },
-                { key: 'rasa', label: 'Rasa (Perasaan, Empati & Pelayanan ❤️)', desc: 'Sensitif terhadap perasaan orang lain, senang membantu, dan membina hubungan.' },
+                {
+                  key: 'karsa',
+                  label: submission?.type === 'tb40anak' ? 'Suka Bergerak & Bekerja Nyata ⚡' : 'Karsa (Pengerahan Tenaga & Eksekusi Nyata ⚡)',
+                  desc: submission?.type === 'tb40anak' ? 'Senang langsung mencoba, menyelesaikan tugas, dan aktif bergerak.' : 'Suka bekerja keras, menyelesaikan tugas, dan bertindak cepat.'
+                },
+                {
+                  key: 'cipta',
+                  label: submission?.type === 'tb40anak' ? 'Suka Berpikir & Menemukan Ide 💡' : 'Cipta (Gagasan, Analisis & Logika 💡)',
+                  desc: submission?.type === 'tb40anak' ? 'Senang penasaran, membaca, menggambar ide, dan memecahkan teka-teki.' : 'Suka berpikir mendalam, menganalisis data, dan menciptakan ide.'
+                },
+                {
+                  key: 'rasa',
+                  label: submission?.type === 'tb40anak' ? 'Suka Berteman & Membantu Teman ❤️' : 'Rasa (Perasaan, Empati & Pelayanan ❤️)',
+                  desc: submission?.type === 'tb40anak' ? 'Senang berbagi, mendengarkan cerita teman, dan peduli dengan sesama.' : 'Sensitif terhadap perasaan orang lain, senang membantu, dan membina hubungan.'
+                },
               ].map((item) => {
                 const rankIndex = forcedRanking.indexOf(item.key)
                 const isSelected = rankIndex !== -1
@@ -459,8 +477,72 @@ function TestWizard() {
           </div>
         )}
 
+        {/* TIER 2 TEASER REPORT & BIG CTA CONTAINER CARD (When Profile Needed) */}
+        {currentTier === 'profile_required' && (
+          <div className="w-full space-y-6">
+            {/* 50% Teaser Card */}
+            {submission?.halfway_report?.preliminary_results && (
+              <div className="bg-gradient-to-r from-teal-900/50 via-indigo-900/50 to-slate-900/50 border border-teal-500/40 rounded-2xl p-6 sm:p-8 backdrop-blur-md shadow-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Hasil Awal Sementara (50%)</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/30">Tier 1 & Tier 2 Selesai</span>
+                </div>
+
+                <h3 className="text-2xl font-extrabold text-slate-100">
+                  {submission.halfway_report.preliminary_results.panggilan || 'Sang Pelaksana Tangguh'}
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-300">
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <BookOpen className="w-4 h-4 text-teal-400 shrink-0" />
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Gaya Belajar Utama</span>
+                      <strong className="text-slate-200">{
+                        typeof submission.halfway_report.preliminary_results.gaya_belajar === 'object'
+                          ? (submission.halfway_report.preliminary_results.gaya_belajar?.gaya_belajar || submission.halfway_report.preliminary_results.gaya_belajar?.category_name || 'Kinestetik')
+                          : (submission.halfway_report.preliminary_results.gaya_belajar || 'Kinestetik')
+                      }</strong>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <Heart className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Bahasa Hati Utama</span>
+                      <strong className="text-slate-200">{
+                        typeof submission.halfway_report.preliminary_results.bahasa_hati === 'object'
+                          ? (submission.halfway_report.preliminary_results.bahasa_hati?.bahasa_hati || submission.halfway_report.preliminary_results.bahasa_hati?.category_name || 'Acts of Service')
+                          : (submission.halfway_report.preliminary_results.bahasa_hati || 'Acts of Service')
+                      }</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BIG CTA CONTAINER CARD */}
+            <div className="p-8 rounded-2xl bg-gradient-to-r from-teal-500/20 via-indigo-500/20 to-purple-500/20 border-2 border-teal-500/50 backdrop-blur-md text-center shadow-2xl space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-teal-500/20 border border-teal-500/30 text-teal-400 flex items-center justify-center shadow-lg shadow-teal-500/20">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-100">
+                Ingin Analisis Pendalaman 18 Sub-Grup & Laporan Complete 100%?
+              </h3>
+              <p className="text-sm text-slate-300 max-w-lg mx-auto">
+                Lengkapi profil Anda untuk membuka pertanyaan pendalaman Tier 3 dan menghasilkan peta bakat presisi penuh.
+              </p>
+              <Button
+                onClick={() => setProfileModalOpen(true)}
+                className="w-full sm:w-auto px-8 py-6 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-base shadow-xl shadow-teal-500/25 rounded-xl cursor-pointer"
+              >
+                Lengkapi Profil & Lanjutkan ke Tier 3 🚀
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* TIER 3 / COMPLETE: 18 SUB-GROUPS LIKERT SLIDERS */}
-        {(currentTier === 'tier_3' || submission?.status === 'complete') && (
+        {(currentTier === 'tier_3' || currentTier === 'tier_4' || currentTier === 'complete') && (
           <div className="w-full space-y-6">
             
             {/* Intermediate Preliminary Teaser Card (If present in halfway_report) */}
@@ -491,27 +573,31 @@ function TestWizard() {
               </div>
             )}
 
-            {/* Questions List (18 Sub-Groups) */}
+            {/* Questions List (18 Sub-Groups in 6 Parts) */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
               <div className="mb-6">
-                <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Tier 3: 18 Sub-Grup Pendalaman</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">
+                    {schema?.part_title || `Tier 3: 18 Sub-Grup Pendalaman (Bagian ${submission?.current_part || 1}/6)`}
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">
+                    {submission?.completed_subgroups_count || 0}/18 Terisi
+                  </span>
+                </div>
                 <h2 className="text-2xl font-bold text-slate-100 mt-1">Pendalaman Indikator Sub-Grup</h2>
                 <p className="text-sm text-slate-400 mt-2">
-                  Geser slider sesuai tingkat kesesuaian setiap pernyataan dengan kondisi diri Anda.
+                  Geser slider sesuai tingkat kesesuaian setiap pernyataan dengan kondisi diri Anda. Nilai awal telah disesuaikan secara otomatis berdasarkan orientasi bakat Anda.
                 </p>
               </div>
 
               {/* Dynamically Render Questions from Schema */}
               <div className="space-y-8">
                 {(schema?.questions || [
-                  { id: 'sub_1', text: 'Saya memiliki dorongan kuat untuk segera menyelesaikan pekerjaan tanpa menunda.' },
-                  { id: 'sub_2', text: 'Saya senang menganalisis masalah kompleks dengan data dan logika sistematis.' },
-                  { id: 'sub_3', text: 'Saya mudah merasakan emosi dan kebutuhan orang lain di sekitar saya.' },
-                  { id: 'sub_4', text: 'Saya menikmati memimpin dan mengarahkan anggota tim mencapai target.' },
-                  { id: 'sub_5', text: 'Saya terbuka untuk bekerja sama secara inklusif dengan berbagai karakter.' },
-                  { id: 'sub_6', text: 'Saya merasa puas ketika bisa membantu dan melayani orang lain dengan tulus.' },
+                  { id: 'sub_1', text: 'Saya memiliki dorongan kuat untuk segera menyelesaikan pekerjaan tanpa menunda.', default_value: 85 },
+                  { id: 'sub_2', text: 'Saya senang menganalisis masalah kompleks dengan data dan logika sistematis.', default_value: 65 },
+                  { id: 'sub_3', text: 'Saya mudah merasakan emosi dan kebutuhan orang lain di sekitar saya.', default_value: 45 },
                 ]).map((q: any, idx: number) => {
-                  const currentVal = tier3Answers[q.id] ?? 50
+                  const currentVal = tier3Answers[q.id] ?? (q.default_value !== undefined ? q.default_value : 50)
                   return (
                     <div key={q.id || idx} className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-3">
                       <div className="flex justify-between items-start gap-4">
@@ -520,7 +606,7 @@ function TestWizard() {
                         </span>
                         <div className="text-right">
                           <span className="text-lg mr-1">{getSliderEmoji(currentVal)}</span>
-                          <span className="text-xs font-semibold text-slate-300">{getSliderLabel(currentVal)} ({currentVal})</span>
+                          <span className="text-xs font-semibold text-slate-300">{getSliderLabel(currentVal)} ({currentVal}%)</span>
                         </div>
                       </div>
 
@@ -539,14 +625,39 @@ function TestWizard() {
                 })}
               </div>
 
-              {/* Final Completion Action Button */}
-              <Button
-                onClick={handleCompleteAssessment}
-                className="w-full mt-8 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-6 text-base shadow-lg shadow-emerald-500/20"
-              >
-                Lihat Laporan Analisis Lengkap (100%)
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
+              {/* Action Buttons: View Report (100%) or Transition to Tier 4 Precision Mode */}
+              <div className="space-y-3 mt-8">
+                <Button
+                  onClick={handleCompleteAssessment}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-6 text-base shadow-lg shadow-emerald-500/20"
+                >
+                  Lihat Laporan Analisis Lengkap (100%)
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    if (!submissionId) return
+                    try {
+                      const res = await evaluateStep(submissionId, {
+                        request_precision: true,
+                        answers: { tier_3: tier3Answers }
+                      })
+                      if (res) {
+                        setSubmission((prev: any) => ({ ...prev, ...res }))
+                        const updatedSchema = await getSchema(res.type || 'tb40', isObserver, subjectName)
+                        if (updatedSchema) setSchema(updatedSchema)
+                      }
+                    } catch (err) {
+                      console.error('Tier 4 transition error:', err)
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-300 font-semibold py-5 text-sm"
+                >
+                  Tingkatkan Ke Presisi Mode Tier 4 (40 Pilar Bakat) 🎯
+                </Button>
+              </div>
             </div>
 
           </div>
@@ -609,29 +720,17 @@ function TestWizard() {
               />
             </div>
 
-            {/* Birth Date / Age Inputs */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="birthDate" className="text-xs font-semibold text-slate-300">Tanggal Lahir</Label>
-                <Input
-                  id="birthDate"
-                  type="date"
-                  value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
-                  className="bg-slate-800 border-slate-700 text-slate-100 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ageVal" className="text-xs font-semibold text-slate-300">atau Usia (Tahun)</Label>
-                <Input
-                  id="ageVal"
-                  type="number"
-                  value={ageVal}
-                  onChange={(e) => setAgeVal(e.target.value ? parseInt(e.target.value, 10) : '')}
-                  placeholder="Contoh: 25"
-                  className="bg-slate-800 border-slate-700 text-slate-100 text-xs"
-                />
-              </div>
+            {/* Age Input (Optional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="ageVal" className="text-xs font-semibold text-slate-300">Usia (Tahun) - Opsional</Label>
+              <Input
+                id="ageVal"
+                type="number"
+                value={ageVal}
+                onChange={(e) => setAgeVal(e.target.value ? parseInt(e.target.value, 10) : '')}
+                placeholder="Contoh: 25"
+                className="bg-slate-800 border-slate-700 text-slate-100 text-xs"
+              />
             </div>
 
             <DialogFooter className="pt-4">
